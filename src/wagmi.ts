@@ -1,17 +1,30 @@
+import { defineChain } from "viem";
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
-import { sepolia } from "wagmi/chains";
-import { injected } from "wagmi/connectors";
+import { cannon } from "wagmi/chains";
+import { ecdsaConnector } from "./app/zerodev/ecsdaConnector";
+
+const cartesi = defineChain({
+    ...cannon,
+    rpcUrls: { default: { http: ["http://127.0.0.1:8080/anvil"] } },
+});
 
 export function getConfig() {
     return createConfig({
-        chains: [sepolia],
-        connectors: [injected()],
+        chains: [cartesi],
+        connectors: [
+            ecdsaConnector({
+                bundlerUrl: "http://127.0.0.1:8080/bundler/rpc",
+                chain: cartesi,
+                rpcUrl: "http://127.0.0.1:8080/anvil",
+                paymasterUrl: "http://127.0.0.1:8080/paymaster/",
+            }),
+        ],
         storage: createStorage({
             storage: cookieStorage,
         }),
         ssr: true,
         transports: {
-            [sepolia.id]: http(),
+            [cartesi.id]: http(),
         },
     });
 }
