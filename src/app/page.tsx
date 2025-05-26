@@ -1,11 +1,26 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { inputBoxAbi, inputBoxAddress } from "@cartesi/viem/abi";
+import { useState } from "react";
+import { stringToHex, zeroAddress } from "viem";
+import {
+    useAccount,
+    useCapabilities,
+    useConnect,
+    useDisconnect,
+    useSendCalls,
+} from "wagmi";
+
+const application = zeroAddress;
 
 function App() {
     const account = useAccount();
     const { connectors, connect, status, error } = useConnect();
     const { disconnect } = useDisconnect();
+
+    const { data: capabilities } = useCapabilities();
+    const [input, setInput] = useState("");
+    const { sendCallsAsync } = useSendCalls();
 
     return (
         <>
@@ -40,6 +55,44 @@ function App() {
                 ))}
                 <div>{status}</div>
                 <div>{error?.message}</div>
+            </div>
+
+            <div>
+                <h2>Transaction</h2>
+                <div>
+                    <label htmlFor="capabilities">Capabilities</label>
+                </div>
+                <div>
+                    <textarea
+                        value={JSON.stringify(capabilities, null, 2)}
+                        rows={24}
+                    />
+                </div>
+                <div>
+                    <label htmlFor="input">Input</label>
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                    />
+                </div>
+                <button
+                    type="button"
+                    onClick={() =>
+                        sendCallsAsync({
+                            calls: [
+                                {
+                                    to: inputBoxAddress,
+                                    abi: inputBoxAbi,
+                                    functionName: "addInput",
+                                    args: [application, stringToHex(input)],
+                                },
+                            ],
+                        })
+                    }
+                >
+                    sendCall
+                </button>
             </div>
         </>
     );
