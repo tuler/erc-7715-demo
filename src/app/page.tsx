@@ -2,16 +2,59 @@
 
 import { inputBoxAbi, inputBoxAddress } from "@cartesi/viem/abi";
 import { useState } from "react";
-import { stringToHex, zeroAddress } from "viem";
+import { getAbiItem, stringToHex, zeroAddress } from "viem";
+import { erc7715Actions } from "viem/experimental";
+import { formatAbiItem } from "viem/utils";
 import {
     useAccount,
     useCapabilities,
     useConnect,
     useDisconnect,
     useSendCalls,
+    useWalletClient,
 } from "wagmi";
 
 const application = zeroAddress;
+
+const useAddInputSession = () => {
+    const { data: walletClient } = useWalletClient();
+    const [sessionId, setSessionId] = useState<string | undefined>();
+    const [sessionExpiry, setSessionExpiry] = useState<number | undefined>();
+
+    const createSession = async (expiry: number) => {
+        if (walletClient) {
+            const sessionWalletClient = walletClient.extend(erc7715Actions());
+            const result = await sessionWalletClient.grantPermissions({
+                expiry,
+                permissions: [
+                    {
+                        type: "contract-call",
+                        data: {
+                            address: inputBoxAddress,
+                            calls: [
+                                formatAbiItem(
+                                    getAbiItem({
+                                        abi: inputBoxAbi,
+                                        name: "addInput",
+                                    })
+                                ),
+                            ],
+                        },
+                        policies: [],
+                    },
+                ],
+            });
+            setSessionId(result.permissionsContext);
+            setSessionExpiry(expiry);
+        }
+    };
+
+    return {
+        createSession,
+        sessionId,
+        sessionExpiry,
+    };
+};
 
 function App() {
     const account = useAccount();
@@ -21,6 +64,8 @@ function App() {
     const { data: capabilities } = useCapabilities();
     const [input, setInput] = useState("");
     const { sendCallsAsync } = useSendCalls();
+
+    const { createSession, sessionId, sessionExpiry } = useAddInputSession();
 
     return (
         <>
@@ -91,8 +136,51 @@ function App() {
                         })
                     }
                 >
-                    sendCall
+                    SendCall
                 </button>
+            </div>
+            <div>
+                <h2>Session</h2>
+                <div>
+                    <label htmlFor="sessionId">Session ID</label>: {sessionId}
+                </div>
+                <div>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            createSession(Date.now() + 1000 * 60 * 60)
+                        }
+                    >
+                        Create Input Session
+                    </button>
+                </div>
+                <div>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            sendCallsAsync({
+                                calls: [
+                                    {
+                                        to: inputBoxAddress,
+                                        abi: inputBoxAbi,
+                                        functionName: "addInput",
+                                        args: [application, stringToHex(input)],
+                                    },
+                                ],
+                                capabilities: {
+                                    paymasterService: {
+                                        url: "http://127.0.0.1:8080/paymaster/",
+                                    },
+                                    permissions: {
+                                        sessionId,
+                                    },
+                                },
+                            })
+                        }
+                    >
+                        SendCall With Session
+                    </button>
+                </div>
             </div>
         </>
     );

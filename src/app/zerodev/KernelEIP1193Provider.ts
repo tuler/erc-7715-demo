@@ -1,3 +1,4 @@
+import type { Compute } from "@wagmi/core/internal";
 import {
     deserializePermissionAccount,
     toPermissionValidator,
@@ -11,16 +12,14 @@ import { createKernelAccount, createKernelAccountClient } from "@zerodev/sdk";
 
 // biome-ignore lint/style/useNodejsImportProtocol: needed for event emitter functionality
 import { EventEmitter } from "events";
+import { createPimlicoClient } from "permissionless/clients/pimlico";
 import type {
     Chain,
-    Client,
     EIP1193Parameters,
     EIP1193RequestFn,
     GetCallsStatusParameters,
     GetCallsStatusReturnType,
     Hash,
-    PublicActions,
-    PublicRpcSchema,
     SendCallsReturnType,
     SendTransactionParameters,
     Transport,
@@ -34,37 +33,34 @@ import {
 } from "viem/account-abstraction";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { GrantPermissionsParameters } from "viem/experimental";
+import type { Storage } from "wagmi";
+import type { StorageItem } from "./ecsdaConnector";
 import {
     type SessionType,
     getPolicies,
     validatePermissions,
 } from "./permissions";
 import { serializePermissionAccount } from "./serializePermissionAccount";
-import { KernelLocalStorage } from "./storage";
-
-const WALLET_CAPABILITIES_STORAGE_KEY = "WALLET_CAPABILITIES";
-const WALLET_PERMISSION_STORAGE_KEY = "WALLET_PERMISSION";
-
-export type PaymasterServiceCapability = {
-    url: string;
-};
 
 export class KernelEIP1193Provider<
     entryPointVersion extends EntryPointVersion
 > extends EventEmitter {
-    private readonly storage = new KernelLocalStorage("ZDWALLET");
+    // private readonly storage = new KernelLocalStorage("ZDWALLET");
     private kernelClient: KernelAccountClient<
         Transport,
         Chain,
         SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
     >;
 
+    private storage: Storage<StorageItem> | null | undefined;
+
     constructor(
         kernelClient: KernelAccountClient<
             Transport,
             Chain,
             SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
-        >
+        >,
+        storage?: Compute<Storage<StorageItem>> | null | undefined
     ) {
         super();
         if (
@@ -74,6 +70,7 @@ export class KernelEIP1193Provider<
             throw new Error("invalid kernel client");
         }
         this.kernelClient = kernelClient;
+        this.storage = storage;
         const permissions =
             kernelClient.account.entryPoint.version === "0.7"
                 ? {
@@ -103,7 +100,7 @@ export class KernelEIP1193Provider<
                 },
             },
         };
-        this.storeItemToStorage(WALLET_CAPABILITIES_STORAGE_KEY, capabilities);
+        this.storage?.setItem("capabilities", capabilities);
     }
 
     getChainId() {
@@ -274,15 +271,13 @@ export class KernelEIP1193Provider<
             Chain,
             SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
         >;
-        const permission = this.getItemFromStorage(
-            WALLET_PERMISSION_STORAGE_KEY
-        ) as SessionType;
+        const permission = await this.storage?.getItem("permissions");
 
         // paymaster service
         const paymaster =
             capabilities?.paymasterService?.[
                 numberToHex(this.kernelClient.chain.id)
-            ];
+            ] || capabilities?.paymasterService;
         const paymasterService = paymaster
             ? createPaymasterClient({ transport: http(paymaster.url) })
             : undefined;
@@ -295,25 +290,27 @@ export class KernelEIP1193Provider<
             const sessionSigner = await toECDSASigner({
                 signer: privateKeyToAccount(session.signerPrivateKey),
             });
-            const sessionKeyAccount = (await deserializePermissionAccount(
-                this.kernelClient.account.client as Client<
-                    Transport,
-                    Chain,
-                    undefined,
-                    PublicRpcSchema,
-                    PublicActions
-                >,
+            const sessionKeyAccount = await deserializePermissionAccount(
+                this.kernelClient.account.client,
                 this.kernelClient.account.entryPoint,
                 this.kernelClient.account.kernelVersion,
                 session.approval,
                 sessionSigner
-            )) as unknown as SmartAccount<
-                KernelSmartAccountImplementation<entryPointVersion>
-            >;
+            );
 
             const kernelClient = createKernelAccountClient({
                 account: sessionKeyAccount,
                 chain: this.kernelClient.chain,
+                userOperation: {
+                    estimateFeesPerGas: async () => {
+                        const pimlicoClient = createPimlicoClient({
+                            transport: http(this.kernelClient.transport.url),
+                        });
+                        const gas =
+                            await pimlicoClient.getUserOperationGasPrice();
+                        return gas.standard;
+                    },
+                },
                 bundlerTransport: http(this.kernelClient.transport.url),
                 paymaster: paymasterService,
             });
@@ -332,6 +329,7 @@ export class KernelEIP1193Provider<
             kernelAccountClient = this.kernelClient;
         }
 
+        /*
         const callData = await kernelAccountClient.account.encodeCalls(
             calls.map((call) => ({
                 // TODO: what about capabilities?
@@ -340,13 +338,24 @@ export class KernelEIP1193Provider<
                 data: call.data ?? "0x",
             }))
         );
+        */
 
-        const account: SmartAccount = this.kernelClient.account;
+        // const account_: SmartAccount = this.kernelClient.account;
+        // const account: SmartAccount = kernelAccountClient.account;
+        const id = await kernelAccountClient.sendUserOperation({
+            calls: calls.map((call) => ({
+                to: call.to ?? kernelAccountClient.account.address,
+                value: call.value ? BigInt(call.value) : 0n,
+                data: call.data ?? "0x",
+            })),
+        });
+        /*
         const id = await kernelAccountClient.sendUserOperation({
             account,
             callData,
-            sender: this.kernelClient.account.address,
+            // sender: kernelAccountClient.account.address,
         });
+        */
 
         return {
             id,
@@ -354,12 +363,8 @@ export class KernelEIP1193Provider<
         };
     }
 
-    private handleWalletCapabilities() {
-        const capabilities = this.getItemFromStorage(
-            WALLET_CAPABILITIES_STORAGE_KEY
-            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
-        ) as Record<string, any> | undefined;
-
+    private async handleWalletCapabilities() {
+        const capabilities = await this.storage?.getItem("capabilities");
         return capabilities
             ? capabilities[this.kernelClient.account.address]
             : {};
@@ -408,9 +413,9 @@ export class KernelEIP1193Provider<
         if (this.kernelClient.account.entryPoint.version !== "0.7") {
             throw new Error("Permissions not supported with kernel v2");
         }
-        const capabilities =
-            this.handleWalletCapabilities()[toHex(this.kernelClient.chain.id)]
-                .permissions.permissionTypes;
+        const capabilities = (await this.handleWalletCapabilities())[
+            toHex(this.kernelClient.chain.id)
+        ].permissions.permissionTypes;
 
         validatePermissions(params[0], capabilities);
         const policies = getPolicies(params[0]);
@@ -422,13 +427,7 @@ export class KernelEIP1193Provider<
             signer: privateKeyToAccount(sessionPrivateKey),
         });
 
-        const client = this.kernelClient.account.client as Client<
-            Transport,
-            Chain | undefined,
-            undefined,
-            PublicRpcSchema,
-            PublicActions
-        >;
+        const client = this.kernelClient.account.client;
 
         const permissionValidator = await toPermissionValidator(client, {
             entryPoint: this.kernelClient.account.entryPoint,
@@ -462,7 +461,7 @@ export class KernelEIP1193Provider<
         });
 
         const createdPermissions =
-            this.getItemFromStorage(WALLET_PERMISSION_STORAGE_KEY) || {};
+            (await this.storage?.getItem("permissions")) ?? {};
         const serializedSessionKey = await serializePermissionAccount(
             sessionKeyAccountWithSig
         );
@@ -487,10 +486,7 @@ export class KernelEIP1193Provider<
         }
 
         mergedPermissions[address][chainId].push(newPermission);
-        this.storeItemToStorage(
-            WALLET_PERMISSION_STORAGE_KEY,
-            mergedPermissions
-        );
+        await this.storage?.setItem("permissions", mergedPermissions);
         return {
             grantedPermissions: permissions.map((permission) => ({
                 type: permission.type,
@@ -500,14 +496,5 @@ export class KernelEIP1193Provider<
             expiry: params[0].expiry,
             permissionsContext: permissionValidator.getIdentifier(),
         };
-    }
-
-    private getItemFromStorage<T>(key: string): T | undefined {
-        const item = this.storage.getItem(key);
-        return item ? JSON.parse(item) : undefined;
-    }
-
-    private storeItemToStorage<T>(key: string, item: T) {
-        this.storage.setItem(key, JSON.stringify(item));
     }
 }

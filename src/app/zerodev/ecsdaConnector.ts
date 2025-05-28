@@ -2,8 +2,10 @@ import {
     ChainNotConfiguredError,
     type Connector,
     ProviderNotFoundError,
+    type Storage,
     createConnector,
 } from "@wagmi/core";
+import type { Compute } from "@wagmi/core/internal";
 import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
 import { createKernelAccount, createKernelAccountClient } from "@zerodev/sdk";
 import { KERNEL_V3_2, getEntryPoint } from "@zerodev/sdk/constants";
@@ -15,6 +17,7 @@ import {
     type ProviderRpcError,
     SwitchChainError,
     UserRejectedRequestError,
+    type WalletCapabilities,
     createPublicClient,
     getAddress,
     numberToHex,
@@ -23,8 +26,10 @@ import {
     type EntryPointVersion,
     createPaymasterClient,
 } from "viem/account-abstraction";
+import "viem/window";
 import { http } from "wagmi";
 import { KernelEIP1193Provider } from "./KernelEIP1193Provider";
+import type { SessionType } from "./permissions";
 
 type ConnectorParameters = {
     chain: Chain;
@@ -34,7 +39,11 @@ type ConnectorParameters = {
 };
 
 // connector types
-type Provider = KernelEIP1193Provider<"0.7"> | undefined;
+export type Provider = KernelEIP1193Provider<"0.7"> | undefined;
+export type StorageItem = {
+    capabilities: WalletCapabilities;
+    permissions: SessionType;
+};
 
 export const ecdsaConnectorId = "zerodevEcdsaSDK";
 
@@ -55,7 +64,10 @@ export function ecdsaConnector<entryPointVersion extends EntryPointVersion>(
     const entryPoint = getEntryPoint("0.7");
     const kernelVersion = KERNEL_V3_2;
 
-    const createProvider = async (sudo: KernelValidator) => {
+    const createProvider = async (
+        sudo: KernelValidator,
+        storage?: Compute<Storage<StorageItem>> | null | undefined
+    ) => {
         const kernelAccount = await createKernelAccount(publicClient, {
             entryPoint,
             kernelVersion,
@@ -82,131 +94,54 @@ export function ecdsaConnector<entryPointVersion extends EntryPointVersion>(
                   })
                 : undefined,
         });
-        return new KernelEIP1193Provider(kernelClient);
+        return new KernelEIP1193Provider(kernelClient, storage);
     };
 
-    return createConnector<Provider>((config) => {
-        return {
-            id: ecdsaConnectorId,
-            name: "ZeroDev ECDSA",
-            type: ecdsaConnector.type,
+    return createConnector<Provider, Record<string, unknown>, StorageItem>(
+        (config) => {
+            return {
+                id: ecdsaConnectorId,
+                name: "ZeroDev ECDSA",
+                type: ecdsaConnector.type,
 
-            async connect(params) {
-                const { chainId } = params ?? {};
+                async connect(params) {
+                    const { chainId } = params ?? {};
 
-                try {
-                    if (chainId && chain.id !== chainId) {
-                        throw new Error(
-                            `Incorrect chain Id: ${chainId} should be ${chain.id}`
-                        );
-                    }
-
-                    const provider = await this.getProvider({
-                        chainId,
-                    });
-                    if (provider) {
-                        const accounts = (
-                            (await provider.request({
-                                method: "eth_requestAccounts",
-                            })) as string[]
-                        ).map((x) => getAddress(x));
-                        if (!accountsChanged) {
-                            accountsChanged = this.onAccountsChanged.bind(this);
-                            provider.on("accountsChanged", accountsChanged);
+                    try {
+                        if (chainId && chain.id !== chainId) {
+                            throw new Error(
+                                `Incorrect chain Id: ${chainId} should be ${chain.id}`
+                            );
                         }
-                        if (!chainChanged) {
-                            chainChanged = this.onChainChanged.bind(this);
-                            provider.on("chainChanged", chainChanged);
+
+                        const provider = await this.getProvider({
+                            chainId,
+                        });
+                        if (provider) {
+                            const accounts = (
+                                (await provider.request({
+                                    method: "eth_requestAccounts",
+                                })) as string[]
+                            ).map((x) => getAddress(x));
+                            if (!accountsChanged) {
+                                accountsChanged =
+                                    this.onAccountsChanged.bind(this);
+                                provider.on("accountsChanged", accountsChanged);
+                            }
+                            if (!chainChanged) {
+                                chainChanged = this.onChainChanged.bind(this);
+                                provider.on("chainChanged", chainChanged);
+                            }
+                            if (!disconnect) {
+                                disconnect = this.onDisconnect.bind(this);
+                                provider.on("disconnect", disconnect);
+                            }
+                            return { accounts, chainId: chain.id };
                         }
-                        if (!disconnect) {
-                            disconnect = this.onDisconnect.bind(this);
-                            provider.on("disconnect", disconnect);
+
+                        if (!window.ethereum) {
+                            throw new Error("No Ethereum provider found");
                         }
-                        return { accounts, chainId: chain.id };
-                    }
-
-                    const ecdsaValidator = await signerToEcdsaValidator(
-                        publicClient,
-                        {
-                            entryPoint,
-                            kernelVersion,
-                            signer: window.ethereum,
-                        }
-                    );
-
-                    walletProvider = await createProvider(ecdsaValidator);
-
-                    const accounts = (
-                        (await walletProvider.request({
-                            method: "eth_requestAccounts",
-                        })) as string[]
-                    ).map((x) => getAddress(x));
-
-                    return {
-                        accounts,
-                        chainId: chain.id,
-                    };
-                } catch (error) {
-                    if (
-                        /(user closed modal|accounts received is empty|user denied account)/i.test(
-                            (error as Error).message
-                        )
-                    )
-                        throw new UserRejectedRequestError(error as Error);
-                    throw error;
-                }
-            },
-
-            async disconnect() {
-                const provider = await this.getProvider();
-                if (accountsChanged) {
-                    provider?.removeListener(
-                        "accountsChanged",
-                        accountsChanged
-                    );
-                    accountsChanged = undefined;
-                }
-                if (chainChanged) {
-                    provider?.removeListener("chainChanged", chainChanged);
-                    chainChanged = undefined;
-                }
-                if (disconnect) {
-                    provider?.removeListener("disconnect", disconnect);
-                    disconnect = undefined;
-                }
-                walletProvider = undefined;
-
-                // remove passkeyValidator from storage
-                config.storage?.removeItem("passkeyValidator");
-            },
-
-            async getAccounts() {
-                const provider = await this.getProvider();
-                if (!provider) throw new ProviderNotFoundError();
-
-                const accounts = (await provider.request({
-                    method: "eth_accounts",
-                })) as string[];
-                return accounts.map(getAddress);
-            },
-
-            async getChainId() {
-                const provider = await this.getProvider();
-                if (!provider) return chain.id;
-
-                const chainId = await provider.request({
-                    method: "eth_chainId",
-                });
-                return Number(chainId as number);
-            },
-
-            async getProvider() {
-                if (!walletProvider) {
-                    // load from storage if available
-                    const serializedData = await config.storage?.getItem(
-                        "passkeyValidator"
-                    );
-                    if (serializedData) {
                         const ecdsaValidator = await signerToEcdsaValidator(
                             publicClient,
                             {
@@ -216,7 +151,91 @@ export function ecdsaConnector<entryPointVersion extends EntryPointVersion>(
                             }
                         );
 
-                        const provider = await createProvider(ecdsaValidator);
+                        walletProvider = await createProvider(
+                            ecdsaValidator,
+                            config.storage
+                        );
+
+                        const accounts = (
+                            (await walletProvider.request({
+                                method: "eth_requestAccounts",
+                            })) as string[]
+                        ).map((x) => getAddress(x));
+
+                        return {
+                            accounts,
+                            chainId: chain.id,
+                        };
+                    } catch (error) {
+                        if (
+                            /(user closed modal|accounts received is empty|user denied account)/i.test(
+                                (error as Error).message
+                            )
+                        )
+                            throw new UserRejectedRequestError(error as Error);
+                        throw error;
+                    }
+                },
+
+                async disconnect() {
+                    const provider = await this.getProvider();
+                    if (accountsChanged) {
+                        provider?.removeListener(
+                            "accountsChanged",
+                            accountsChanged
+                        );
+                        accountsChanged = undefined;
+                    }
+                    if (chainChanged) {
+                        provider?.removeListener("chainChanged", chainChanged);
+                        chainChanged = undefined;
+                    }
+                    if (disconnect) {
+                        provider?.removeListener("disconnect", disconnect);
+                        disconnect = undefined;
+                    }
+                    walletProvider = undefined;
+                },
+
+                async getAccounts() {
+                    const provider = await this.getProvider();
+                    if (!provider) throw new ProviderNotFoundError();
+
+                    const accounts = (await provider.request({
+                        method: "eth_accounts",
+                    })) as string[];
+                    return accounts.map(getAddress);
+                },
+
+                async getChainId() {
+                    const provider = await this.getProvider();
+                    if (!provider) return chain.id;
+
+                    const chainId = await provider.request({
+                        method: "eth_chainId",
+                    });
+                    return Number(chainId as number);
+                },
+
+                async getProvider() {
+                    if (!walletProvider) {
+                        if (!window.ethereum) {
+                            throw new Error("No Ethereum provider found");
+                        }
+
+                        const ecdsaValidator = await signerToEcdsaValidator(
+                            publicClient,
+                            {
+                                entryPoint,
+                                kernelVersion,
+                                signer: window.ethereum,
+                            }
+                        );
+
+                        const provider = await createProvider(
+                            ecdsaValidator,
+                            config.storage
+                        );
 
                         if (!accountsChanged) {
                             accountsChanged = this.onAccountsChanged.bind(this);
@@ -232,124 +251,131 @@ export function ecdsaConnector<entryPointVersion extends EntryPointVersion>(
                         }
                         walletProvider = provider;
                     }
-                }
-                return walletProvider;
-            },
+                    return walletProvider;
+                },
 
-            async isAuthorized() {
-                try {
-                    const accounts = await this.getAccounts();
-                    return !!accounts.length;
-                } catch {
-                    return false;
-                }
-            },
-
-            async switchChain({ addEthereumChainParameter, chainId }) {
-                const chain = config.chains.find(
-                    (chain) => chain.id === chainId
-                );
-                if (!chain)
-                    throw new SwitchChainError(new ChainNotConfiguredError());
-
-                const provider = await this.getProvider();
-                if (!provider)
-                    throw new SwitchChainError(new Error("Not Connected"));
-
-                try {
-                    await provider.request({
-                        method: "wallet_switchEthereumChain",
-                        params: [{ chainId: numberToHex(chain.id) }],
-                    });
-                    return chain;
-                } catch (error) {
-                    // Indicates chain is not added to provider
-                    if ((error as ProviderRpcError).code === 4902) {
-                        try {
-                            let blockExplorerUrls: string[];
-                            if (addEthereumChainParameter?.blockExplorerUrls)
-                                blockExplorerUrls =
-                                    addEthereumChainParameter.blockExplorerUrls;
-                            else
-                                blockExplorerUrls = chain.blockExplorers
-                                    ?.default.url
-                                    ? [chain.blockExplorers?.default.url]
-                                    : [];
-
-                            let rpcUrls: readonly string[];
-                            if (addEthereumChainParameter?.rpcUrls?.length)
-                                rpcUrls = addEthereumChainParameter.rpcUrls;
-                            else
-                                rpcUrls = [
-                                    chain.rpcUrls.default?.http[0] ?? "",
-                                ];
-
-                            const addEthereumChain = {
-                                blockExplorerUrls,
-                                chainId: numberToHex(chainId),
-                                chainName:
-                                    addEthereumChainParameter?.chainName ??
-                                    chain.name,
-                                iconUrls: addEthereumChainParameter?.iconUrls,
-                                nativeCurrency:
-                                    addEthereumChainParameter?.nativeCurrency ??
-                                    chain.nativeCurrency,
-                                rpcUrls,
-                            } satisfies AddEthereumChainParameter;
-
-                            await provider.request({
-                                method: "wallet_addEthereumChain",
-                                params: [addEthereumChain],
-                            });
-
-                            return chain;
-                        } catch (error) {
-                            throw new UserRejectedRequestError(error as Error);
-                        }
+                async isAuthorized() {
+                    try {
+                        const accounts = await this.getAccounts();
+                        return !!accounts.length;
+                    } catch {
+                        return false;
                     }
+                },
 
-                    throw new SwitchChainError(error as Error);
-                }
-            },
+                async switchChain({ addEthereumChainParameter, chainId }) {
+                    const chain = config.chains.find(
+                        (chain) => chain.id === chainId
+                    );
+                    if (!chain)
+                        throw new SwitchChainError(
+                            new ChainNotConfiguredError()
+                        );
 
-            async onAccountsChanged(accounts) {
-                if (accounts.length === 0) this.onDisconnect();
-                else
-                    config.emitter.emit("change", {
-                        accounts: accounts.map((x) => getAddress(x)),
-                    });
-            },
+                    const provider = await this.getProvider();
+                    if (!provider)
+                        throw new SwitchChainError(new Error("Not Connected"));
 
-            async onChainChanged(chain) {
-                const chainId = Number(chain);
-                config.emitter.emit("change", { chainId });
-            },
+                    try {
+                        await provider.request({
+                            method: "wallet_switchEthereumChain",
+                            params: [{ chainId: numberToHex(chain.id) }],
+                        });
+                        return chain;
+                    } catch (error) {
+                        // Indicates chain is not added to provider
+                        if ((error as ProviderRpcError).code === 4902) {
+                            try {
+                                let blockExplorerUrls: string[];
+                                if (
+                                    addEthereumChainParameter?.blockExplorerUrls
+                                )
+                                    blockExplorerUrls =
+                                        addEthereumChainParameter.blockExplorerUrls;
+                                else
+                                    blockExplorerUrls = chain.blockExplorers
+                                        ?.default.url
+                                        ? [chain.blockExplorers?.default.url]
+                                        : [];
 
-            async onDisconnect(_error) {
-                config.emitter.emit("disconnect");
+                                let rpcUrls: readonly string[];
+                                if (addEthereumChainParameter?.rpcUrls?.length)
+                                    rpcUrls = addEthereumChainParameter.rpcUrls;
+                                else
+                                    rpcUrls = [
+                                        chain.rpcUrls.default?.http[0] ?? "",
+                                    ];
 
-                const provider = await this.getProvider();
-                if (!provider) return;
+                                const addEthereumChain = {
+                                    blockExplorerUrls,
+                                    chainId: numberToHex(chainId),
+                                    chainName:
+                                        addEthereumChainParameter?.chainName ??
+                                        chain.name,
+                                    iconUrls:
+                                        addEthereumChainParameter?.iconUrls,
+                                    nativeCurrency:
+                                        addEthereumChainParameter?.nativeCurrency ??
+                                        chain.nativeCurrency,
+                                    rpcUrls,
+                                } satisfies AddEthereumChainParameter;
 
-                if (accountsChanged) {
-                    provider.removeListener("accountsChanged", accountsChanged);
-                    accountsChanged = undefined;
-                }
-                if (chainChanged) {
-                    provider.removeListener("chainChanged", chainChanged);
-                    chainChanged = undefined;
-                }
-                if (disconnect) {
-                    provider.removeListener("disconnect", disconnect);
-                    disconnect = undefined;
-                }
-                walletProvider = undefined;
+                                await provider.request({
+                                    method: "wallet_addEthereumChain",
+                                    params: [addEthereumChain],
+                                });
 
-                // remove passkeyValidator from storage
-                config.storage?.removeItem("passkeyValidator");
-            },
-        };
-    });
+                                return chain;
+                            } catch (error) {
+                                throw new UserRejectedRequestError(
+                                    error as Error
+                                );
+                            }
+                        }
+
+                        throw new SwitchChainError(error as Error);
+                    }
+                },
+
+                async onAccountsChanged(accounts) {
+                    if (accounts.length === 0) this.onDisconnect();
+                    else
+                        config.emitter.emit("change", {
+                            accounts: accounts.map((x) => getAddress(x)),
+                        });
+                },
+
+                async onChainChanged(chain) {
+                    const chainId = Number(chain);
+                    config.emitter.emit("change", { chainId });
+                },
+
+                async onDisconnect(_error) {
+                    config.emitter.emit("disconnect");
+
+                    const provider = await this.getProvider();
+                    if (!provider) return;
+
+                    if (accountsChanged) {
+                        provider.removeListener(
+                            "accountsChanged",
+                            accountsChanged
+                        );
+                        accountsChanged = undefined;
+                    }
+                    if (chainChanged) {
+                        provider.removeListener("chainChanged", chainChanged);
+                        chainChanged = undefined;
+                    }
+                    if (disconnect) {
+                        provider.removeListener("disconnect", disconnect);
+                        disconnect = undefined;
+                    }
+                    walletProvider = undefined;
+                },
+            };
+        }
+    );
 }
 
 type PasskeyCreateConnectorFn = ReturnType<typeof ecdsaConnector>;
