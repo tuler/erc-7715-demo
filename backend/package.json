@@ -1,0 +1,26 @@
+{
+    "name": "tic-tac-toe",
+    "version": "0.1.0",
+    "description": "Tic Tac Toe",
+    "dependencies": {
+        "@deroll/app": "2.0.0-alpha.1",
+        "viem": "^2.30.5"
+    },
+    "devDependencies": {
+        "@types/node": "^22.15.20",
+        "esbuild": "^0.25.4",
+        "npm-run-all": "^4",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.8.3",
+        "vitest": "^3.1.4"
+    },
+    "scripts": {
+        "build": "tsc && esbuild ./src/index.ts --bundle --outfile=dist/index.js --platform=node --target=node20",
+        "start": "ROLLUP_HTTP_SERVER_URL=\"http://127.0.0.1:5004\" ts-node src/index.ts"
+    },
+    "keywords": [
+        "cartesi"
+    ],
+    "packageManager": "pnpm@10.11.0",
+    "license": "MIT"
+}
