@@ -1,43 +1,52 @@
 import { createApp } from "@deroll/app";
 import { hexToNumber, stringToHex } from "viem";
 
+// stats
 let xWins = 0;
 let oWins = 0;
 let draws = 0;
 
-const board = ["", "", "", "", "", "", "", "", ""];
+// Board represented as two bit masks: one for X and one for O
+let xBoard = 0;
+let oBoard = 0;
 type Turn = "x" | "o";
 let turn: Turn = "x";
 
-function checkWin(board: string[], player: Turn): boolean {
+function checkWin(board: number): boolean {
     const winPatterns = [
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8], // rows
-        [0, 3, 6],
-        [1, 4, 7],
-        [2, 5, 8], // columns
-        [0, 4, 8],
-        [2, 4, 6], // diagonals
+        0b111000000, // top row
+        0b000111000, // middle row
+        0b000000111, // bottom row
+        0b100100100, // left column
+        0b010010010, // middle column
+        0b001001001, // right column
+        0b100010001, // diagonal top-left to bottom-right
+        0b001010100, // diagonal top-right to bottom-left
     ];
-    return winPatterns.some((pattern) =>
-        pattern.every((index) => board[index] === player)
-    );
+    return winPatterns.some((pattern) => (board & pattern) === pattern);
 }
 
-function checkDraw(board: string[]): boolean {
-    return board.every((cell) => cell !== "");
+function isBoardFull(): boolean {
+    return (xBoard | oBoard) === 0b111111111;
 }
 
-function boardToString(board: string[]) {
-    const rows = Array.from({ length: 3 }, (_, i) =>
-        board
-            .slice(i * 3, (i + 1) * 3)
-            .map((cell) => cell || " ")
-            .join("│")
-    );
-    const separator = "─┼─┼─";
-    return rows.join(`\n${separator}\n`);
+function boardToString(xBoard: number, oBoard: number) {
+    let board = "";
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+            const pos = row * 3 + col;
+            const mask = 1 << pos;
+            if (xBoard & mask) {
+                board += "x";
+            } else if (oBoard & mask) {
+                board += "o";
+            } else {
+                board += ".";
+            }
+        }
+        board += "\n";
+    }
+    return board;
 }
 
 // create application
@@ -49,12 +58,12 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
     const cell = hexToNumber(payload, { size: 1, signed: false });
 
     // check if the cell is in bounds and empty
-    if (cell < 0 || cell >= board.length) {
+    if (cell < 0 || cell >= 9) {
         console.error(`Rejecting invalid cell: ${cell}`);
         return "reject";
     }
 
-    if (board[cell] !== "") {
+    if (((xBoard | oBoard) & (1 << cell)) !== 0) {
         console.error(`Rejecting occupied cell: ${cell}`);
         return "reject";
     }
@@ -62,13 +71,15 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
     console.log(`${metadata.msg_sender} plays ${turn} at ${cell}`);
 
     // update the board
-    board[cell] = turn;
-
-    // print the board
-    console.log(boardToString(board));
+    if (turn === "x") {
+        xBoard |= 1 << cell;
+    } else {
+        oBoard |= 1 << cell;
+    }
+    console.log(boardToString(xBoard, oBoard));
 
     // check if the player has won
-    if (checkWin(board, turn)) {
+    if (checkWin(turn === "x" ? xBoard : oBoard)) {
         if (turn === "x") {
             xWins++;
         } else {
@@ -76,14 +87,16 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
         }
 
         // reset the board
-        board.fill("");
+        xBoard = 0;
+        oBoard = 0;
         turn = "x";
-    } else if (checkDraw(board)) {
+    } else if (isBoardFull()) {
         // check if the board is full
         draws++;
 
         // reset the board
-        board.fill("");
+        xBoard = 0;
+        oBoard = 0;
         turn = "x";
     } else {
         // switch turn
@@ -91,7 +104,7 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
     }
 
     // create a report with the current state of the game
-    const state = { xWins, oWins, draws, board, turn };
+    const state = { xWins, oWins, draws, xBoard, oBoard, turn };
     await app.createNotice({
         payload: stringToHex(JSON.stringify(state)),
     });

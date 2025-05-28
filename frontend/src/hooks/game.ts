@@ -49,7 +49,8 @@ type State = {
     xWins: number;
     oWins: number;
     draws: number;
-    board: ("x" | "o" | "")[];
+    xBoard: number;
+    oBoard: number;
     turn: "x" | "o";
 };
 
@@ -70,7 +71,8 @@ export const useTicTacToe = () => {
         xWins: 0,
         oWins: 0,
         draws: 0,
-        board: Array(9).fill(""),
+        xBoard: 0,
+        oBoard: 0,
         turn: "x",
     });
 

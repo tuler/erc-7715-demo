@@ -60,7 +60,8 @@ function App() {
 
             <Stack gap={40}>
                 <Board
-                    board={game.board}
+                    xBoard={game.xBoard}
+                    oBoard={game.oBoard}
                     onCellClick={(cell) => play(cell, sessionId)}
                     loading={error ? false : isPending}
                 />
