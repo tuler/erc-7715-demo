@@ -1,24 +1,30 @@
 import { defineChain } from "viem";
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
 import { cannon } from "wagmi/chains";
+import { metaMask } from "wagmi/connectors";
 import { ecdsaConnector } from "./app/zerodev/ecsdaConnector";
+
+const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL as string;
+const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL as string;
+const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL as string;
 
 const cartesi = defineChain({
     ...cannon,
-    rpcUrls: { default: { http: ["http://127.0.0.1:8080/anvil"] } },
+    rpcUrls: { default: { http: [rpcUrl] } },
 });
 
 export function getConfig() {
+    const metaMaskConnector = metaMask();
+    const zeroDevConnector = ecdsaConnector({
+        bundlerUrl,
+        chain: cartesi,
+        rpcUrl,
+        paymasterUrl,
+    });
+
     return createConfig({
         chains: [cartesi],
-        connectors: [
-            ecdsaConnector({
-                bundlerUrl: "http://127.0.0.1:8080/bundler/rpc",
-                chain: cartesi,
-                rpcUrl: "http://127.0.0.1:8080/anvil",
-                paymasterUrl: "http://127.0.0.1:8080/paymaster/",
-            }),
-        ],
+        connectors: [metaMaskConnector, zeroDevConnector],
         storage: createStorage({
             storage: cookieStorage,
         }),

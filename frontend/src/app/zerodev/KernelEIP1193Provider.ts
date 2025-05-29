@@ -17,12 +17,11 @@ import type {
     Chain,
     EIP1193Parameters,
     EIP1193RequestFn,
-    GetCallsStatusParameters,
-    GetCallsStatusReturnType,
     Hash,
     SendCallsReturnType,
     SendTransactionParameters,
     Transport,
+    WalletGetCallsStatusReturnType,
     WalletSendCallsParameters,
 } from "viem";
 import { hexToNumber, http, isHex, numberToHex, toHex } from "viem";
@@ -41,6 +40,21 @@ import {
     validatePermissions,
 } from "./permissions";
 import { serializePermissionAccount } from "./serializePermissionAccount";
+
+const PERMISSION_KEY = "zerodev.permissions";
+
+const getStorageKey = <T>(key: string): T | undefined => {
+    if (window.localStorage) {
+        const value = window.localStorage.getItem(key);
+        return value ? (JSON.parse(value) as T) : undefined;
+    }
+};
+
+const setStorageKey = <T>(key: string, value: T) => {
+    if (window.localStorage) {
+        window.localStorage.setItem(key, JSON.stringify(value));
+    }
+};
 
 export class KernelEIP1193Provider<
     entryPointVersion extends EntryPointVersion
@@ -63,12 +77,6 @@ export class KernelEIP1193Provider<
         storage?: Compute<Storage<StorageItem>> | null | undefined
     ) {
         super();
-        if (
-            typeof kernelClient.account !== "object" ||
-            typeof kernelClient.chain !== "object"
-        ) {
-            throw new Error("invalid kernel client");
-        }
         this.kernelClient = kernelClient;
         this.storage = storage;
         const permissions =
@@ -136,9 +144,7 @@ export class KernelEIP1193Provider<
                     params as WalletSendCallsParameters
                 );
             case "wallet_getCallsStatus":
-                return this.handleWalletGetCallStatus(
-                    params as [GetCallsStatusParameters]
-                );
+                return this.handleWalletGetCallStatus(params as [string]);
             case "wallet_grantPermissions":
                 return this.handleWalletGrantPermissions(
                     params as [GrantPermissionsParameters]
@@ -271,7 +277,6 @@ export class KernelEIP1193Provider<
             Chain,
             SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
         >;
-        const permission = await this.storage?.getItem("permissions");
 
         // paymaster service
         const paymaster =
@@ -282,10 +287,17 @@ export class KernelEIP1193Provider<
             ? createPaymasterClient({ transport: http(paymaster.url) })
             : undefined;
 
+        // get stored permissions
+        const permission = getStorageKey<SessionType>(PERMISSION_KEY) || {};
+
+        // is a session id provided?
         const sessionId = capabilities?.permissions?.sessionId;
-        const session = permission?.[accountAddress]?.[
+
+        // search for the session in the stored permissions
+        const session = permission[accountAddress]?.[
             toHex(accountChainId)
         ]?.find((session) => session.sessionId === sessionId);
+
         if (session && this.kernelClient?.account?.client) {
             const sessionSigner = await toECDSASigner({
                 signer: privateKeyToAccount(session.signerPrivateKey),
@@ -329,19 +341,6 @@ export class KernelEIP1193Provider<
             kernelAccountClient = this.kernelClient;
         }
 
-        /*
-        const callData = await kernelAccountClient.account.encodeCalls(
-            calls.map((call) => ({
-                // TODO: what about capabilities?
-                to: call.to ?? kernelAccountClient.account.address,
-                value: call.value ? BigInt(call.value) : 0n,
-                data: call.data ?? "0x",
-            }))
-        );
-        */
-
-        // const account_: SmartAccount = this.kernelClient.account;
-        // const account: SmartAccount = kernelAccountClient.account;
         const id = await kernelAccountClient.sendUserOperation({
             calls: calls.map((call) => ({
                 to: call.to ?? kernelAccountClient.account.address,
@@ -349,13 +348,6 @@ export class KernelEIP1193Provider<
                 data: call.data ?? "0x",
             })),
         });
-        /*
-        const id = await kernelAccountClient.sendUserOperation({
-            account,
-            callData,
-            // sender: kernelAccountClient.account.address,
-        });
-        */
 
         return {
             id,
@@ -371,39 +363,55 @@ export class KernelEIP1193Provider<
     }
 
     private async handleWalletGetCallStatus(
-        params: [GetCallsStatusParameters]
-    ): Promise<GetCallsStatusReturnType> {
-        const userOpHash = params[0].id;
+        params: [string]
+    ): Promise<WalletGetCallsStatusReturnType> {
+        const hash = params[0];
 
-        if (!isHex(userOpHash)) {
+        if (!isHex(hash)) {
             throw new Error(
                 "Invalid params for wallet_getCallStatus: not a hex string"
             );
         }
         const result = await this.kernelClient.getUserOperationReceipt({
-            hash: userOpHash,
+            hash,
         });
-        if (!result?.success) {
+        if (!result.success) {
             return {
-                id: userOpHash,
-                atomic: false, // TODO: what is this?
-                chainId: this.kernelClient.chain.id,
-                status: "pending", // TODO: handle the error case
-                statusCode: 200,
-                version: this.kernelClient.account.entryPoint.version,
+                version: "2.0.0",
+                id: hash,
+                atomic: true,
+                chainId: toHex(this.kernelClient.chain.id),
+                status: 100, // TODO: handle the error case
                 // capabilities: // TODO: what is this?
-                receipts: [result.receipt],
+                receipts: [
+                    {
+                        blockHash: result.receipt.blockHash,
+                        blockNumber: toHex(result.receipt.blockNumber),
+                        gasUsed: toHex(result.receipt.gasUsed),
+                        status: "0x0",
+                        transactionHash: result.receipt.transactionHash,
+                        logs: result.receipt.logs,
+                    },
+                ],
             };
         }
         return {
-            atomic: false, // TODO: what is this?
-            chainId: this.kernelClient.chain.id,
-            id: userOpHash,
-            statusCode: 200,
-            version: this.kernelClient.account.entryPoint.version,
+            version: "2.0.0",
+            id: hash,
+            atomic: true,
+            chainId: toHex(this.kernelClient.chain.id),
             // capabilities: // TODO: what is this?
-            status: "success",
-            receipts: [result.receipt],
+            status: 200,
+            receipts: [
+                {
+                    blockHash: result.receipt.blockHash,
+                    blockNumber: toHex(result.receipt.blockNumber),
+                    gasUsed: toHex(result.receipt.gasUsed),
+                    status: "0x1",
+                    transactionHash: result.receipt.transactionHash,
+                    logs: result.receipt.logs,
+                },
+            ],
         };
     }
 
@@ -461,7 +469,7 @@ export class KernelEIP1193Provider<
         });
 
         const createdPermissions =
-            (await this.storage?.getItem("permissions")) ?? {};
+            getStorageKey<SessionType>(PERMISSION_KEY) || {};
         const serializedSessionKey = await serializePermissionAccount(
             sessionKeyAccountWithSig
         );
@@ -486,7 +494,7 @@ export class KernelEIP1193Provider<
         }
 
         mergedPermissions[address][chainId].push(newPermission);
-        await this.storage?.setItem("permissions", mergedPermissions);
+        setStorageKey(PERMISSION_KEY, mergedPermissions);
         return {
             grantedPermissions: permissions.map((permission) => ({
                 type: permission.type,

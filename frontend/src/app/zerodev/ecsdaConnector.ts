@@ -22,14 +22,10 @@ import {
     getAddress,
     numberToHex,
 } from "viem";
-import {
-    type EntryPointVersion,
-    createPaymasterClient,
-} from "viem/account-abstraction";
+import { createPaymasterClient } from "viem/account-abstraction";
 import "viem/window";
 import { http } from "wagmi";
 import { KernelEIP1193Provider } from "./KernelEIP1193Provider";
-import type { SessionType } from "./permissions";
 
 type ConnectorParameters = {
     chain: Chain;
@@ -42,15 +38,12 @@ type ConnectorParameters = {
 export type Provider = KernelEIP1193Provider<"0.7"> | undefined;
 export type StorageItem = {
     capabilities: WalletCapabilities;
-    permissions: SessionType;
 };
 
 export const ecdsaConnectorId = "zerodevEcdsaSDK";
 
 ecdsaConnector.type = "ecdsaConnector" as const;
-export function ecdsaConnector<entryPointVersion extends EntryPointVersion>(
-    params: ConnectorParameters
-) {
+export function ecdsaConnector(params: ConnectorParameters) {
     const { bundlerUrl, chain, paymasterUrl, rpcUrl } = params;
     let walletProvider: KernelEIP1193Provider<"0.7"> | undefined;
     let accountsChanged: Connector["onAccountsChanged"] | undefined;
