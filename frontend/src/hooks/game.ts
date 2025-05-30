@@ -62,7 +62,7 @@ export const useTicTacToe = () => {
     } = useWaitForCallsStatus({ id: data?.id });
 
     const [inputIndex, setInputIndex] = useState<bigint>();
-    const { data: processedInputCount } = useProcessedInputCount({
+    const { data: processedInputCount, refetch } = useProcessedInputCount({
         application,
     });
 
@@ -111,8 +111,9 @@ export const useTicTacToe = () => {
             if (output && output.decodedData.type === "Notice") {
                 setGame(JSON.parse(hexToString(output.decodedData.payload)));
             }
+            refetch();
         }
-    }, [outputs]);
+    }, [outputs, refetch]);
 
     const play = (index: number, sessionId?: string) => {
         sendCalls({
