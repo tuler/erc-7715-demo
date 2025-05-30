@@ -2,6 +2,7 @@
 
 import Board from "@/components/board";
 import { ConnectionPanel } from "@/components/connection";
+import Scoreboard from "@/components/score";
 import { useTicTacToe } from "@/hooks/game";
 import { useAddInputSession } from "@/hooks/session";
 import {
@@ -57,11 +58,18 @@ function App() {
                 )}
             </Stack>
 
-            <Board
-                board={game.board}
-                onCellClick={(cell) => play(cell, sessionId)}
-                loading={error ? false : isPending}
-            />
+            <Stack gap={40}>
+                <Board
+                    board={game.board}
+                    onCellClick={(cell) => play(cell, sessionId)}
+                    loading={error ? false : isPending}
+                />
+                <Scoreboard
+                    xWins={game.xWins}
+                    oWins={game.oWins}
+                    draws={game.draws}
+                />
+            </Stack>
         </Group>
     );
 }
