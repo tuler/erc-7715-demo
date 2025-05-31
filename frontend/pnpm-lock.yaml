@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@cartesi/viem':
-        specifier: 2.0.0-alpha.10
-        version: 2.0.0-alpha.10(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)
+        specifier: 2.0.0-alpha.11
+        version: 2.0.0-alpha.11(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)
       '@cartesi/wagmi':
-        specifier: 2.0.0-alpha.10
-        version: 2.0.0-alpha.10(@tanstack/react-query@5.77.2(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(wagmi@2.15.4(@tanstack/query-core@5.77.2)(@tanstack/react-query@5.77.2(react@19.1.0))(@types/react@19.1.6)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.0)(supports-color@10.0.0)(typescript@5.8.3)(utf-8-validate@6.0.5)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28))(zod@3.25.28)
+        specifier: 2.0.0-alpha.11
+        version: 2.0.0-alpha.11(@tanstack/react-query@5.77.2(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(wagmi@2.15.4(@tanstack/query-core@5.77.2)(@tanstack/react-query@5.77.2(react@19.1.0))(@types/react@19.1.6)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.0)(supports-color@10.0.0)(typescript@5.8.3)(utf-8-validate@6.0.5)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28))(zod@3.25.28)
       '@mantine/core':
         specifier: ^8.0.2
         version: 8.0.2(@mantine/hooks@8.0.2(react@19.1.0))(@types/react@19.1.6)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -112,13 +112,13 @@ packages:
   '@cartesi/rpc@2.0.0-alpha.7':
     resolution: {integrity: sha512-tvHYp4t1opnXO8BrCwujIwIiErK0/Pg56i/HDHqwjuZQqgpEZx0c5vhp/Us8vp6LIGfhsMYFMcayA8JCfkldOA==}
 
-  '@cartesi/viem@2.0.0-alpha.10':
-    resolution: {integrity: sha512-PnolvWq/sDzl5k+3m5wm+slwNz5aKLlAx7Ow54f6zWCbW5ppIQtiMwl+Sa9/YzGUUyiElgadahm59YHSr84JxA==}
+  '@cartesi/viem@2.0.0-alpha.11':
+    resolution: {integrity: sha512-Pesnuv+c59kYT1TXAbe4Ck35jS9TRcx+rnU0fPJyDDUYbqHmDM5HQx6zzMrdOpOKVLJ5xQkMfDjtc9U9tZNlCw==}
     peerDependencies:
       viem: ^2.0.0
 
-  '@cartesi/wagmi@2.0.0-alpha.10':
-    resolution: {integrity: sha512-GPFtAwY27Tt3p/na+HtSoE7RoXfSzDpd8FFscQcH3sJK4ZSOrMcY/OH60JiDu8XwQf16iHSAMTRe6vwAgXEDrA==}
+  '@cartesi/wagmi@2.0.0-alpha.11':
+    resolution: {integrity: sha512-0WRf7KmL4fzVOvf+3QBAWTDXpPbEcjFAVefXt6qNPmnop/QKFCwWW4Hk7LtDP+ORu3+9Mp348f9sErtIIV5TkQ==}
     peerDependencies:
       '@tanstack/react-query': ^5.0.0
       react: ^19.0.0
@@ -2332,7 +2332,7 @@ snapshots:
     dependencies:
       json-rpc-2.0: 1.7.0
 
-  '@cartesi/viem@2.0.0-alpha.10(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)':
+  '@cartesi/viem@2.0.0-alpha.11(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)':
     dependencies:
       '@cartesi/rpc': 2.0.0-alpha.7
       abitype: 1.0.8(typescript@5.8.3)(zod@3.25.28)
@@ -2342,9 +2342,9 @@ snapshots:
       - typescript
       - zod
 
-  '@cartesi/wagmi@2.0.0-alpha.10(@tanstack/react-query@5.77.2(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(wagmi@2.15.4(@tanstack/query-core@5.77.2)(@tanstack/react-query@5.77.2(react@19.1.0))(@types/react@19.1.6)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.0)(supports-color@10.0.0)(typescript@5.8.3)(utf-8-validate@6.0.5)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28))(zod@3.25.28)':
+  '@cartesi/wagmi@2.0.0-alpha.11(@tanstack/react-query@5.77.2(react@19.1.0))(react@19.1.0)(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(wagmi@2.15.4(@tanstack/query-core@5.77.2)(@tanstack/react-query@5.77.2(react@19.1.0))(@types/react@19.1.6)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.0)(supports-color@10.0.0)(typescript@5.8.3)(utf-8-validate@6.0.5)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28))(zod@3.25.28)':
     dependencies:
-      '@cartesi/viem': 2.0.0-alpha.10(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)
+      '@cartesi/viem': 2.0.0-alpha.11(typescript@5.8.3)(viem@2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28))(zod@3.25.28)
       '@tanstack/react-query': 5.77.2(react@19.1.0)
       react: 19.1.0
       viem: 2.30.5(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@6.0.5)(zod@3.25.28)

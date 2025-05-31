@@ -9,8 +9,8 @@
         "lint": "next lint"
     },
     "dependencies": {
-        "@cartesi/viem": "2.0.0-alpha.10",
-        "@cartesi/wagmi": "2.0.0-alpha.10",
+        "@cartesi/viem": "2.0.0-alpha.11",
+        "@cartesi/wagmi": "2.0.0-alpha.11",
         "@mantine/core": "^8.0.2",
         "@mantine/hooks": "^8.0.2",
         "@tabler/icons-react": "^3.33.0",
