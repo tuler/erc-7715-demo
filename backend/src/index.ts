@@ -9,8 +9,7 @@ let draws = 0;
 // Board represented as two bit masks: one for X and one for O
 let xBoard = 0;
 let oBoard = 0;
-type Turn = "x" | "o";
-let turn: Turn = "x";
+let turn: "x" | "o" = "x";
 
 function checkWin(board: number): boolean {
     const winPatterns = [
@@ -31,22 +30,12 @@ function isBoardFull(): boolean {
 }
 
 function boardToString(xBoard: number, oBoard: number) {
-    let board = "";
-    for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-            const pos = row * 3 + col;
-            const mask = 1 << pos;
-            if (xBoard & mask) {
-                board += "x";
-            } else if (oBoard & mask) {
-                board += "o";
-            } else {
-                board += ".";
-            }
-        }
-        board += "\n";
-    }
-    return board;
+    return Array.from({ length: 3 }, (_, row) =>
+        Array.from({ length: 3 }, (_, col) => {
+            const mask = 1 << (row * 3 + col);
+            return xBoard & mask ? "x" : oBoard & mask ? "o" : ".";
+        }).join("")
+    ).join("\n");
 }
 
 // create application
@@ -85,6 +74,8 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
         } else {
             oWins++;
         }
+        console.log(`${turn} wins`);
+        console.log(`x ${xWins} wins, o ${oWins} wins, ${draws} draws`);
 
         // reset the board
         xBoard = 0;
@@ -93,6 +84,8 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
     } else if (isBoardFull()) {
         // check if the board is full
         draws++;
+        console.log("it's a draw");
+        console.log(`x ${xWins} wins, o ${oWins} wins, ${draws} draws`);
 
         // reset the board
         xBoard = 0;
