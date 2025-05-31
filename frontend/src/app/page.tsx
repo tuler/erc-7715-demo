@@ -14,10 +14,10 @@ import {
     Textarea,
     Tooltip,
 } from "@mantine/core";
-import { IconCirclePlusFilled } from "@tabler/icons-react";
+import { IconCirclePlusFilled, IconCircleXFilled } from "@tabler/icons-react";
 
 function App() {
-    const { createSession, sessionId } = useAddInputSession();
+    const { createSession, deleteSession, sessionId } = useAddInputSession();
     const { error, game, play, isPending } = useTicTacToe();
 
     return (
@@ -29,21 +29,36 @@ function App() {
                     value={sessionId ?? "N/A"}
                     readOnly
                     rightSection={
-                        <Tooltip label="Create Session">
-                            <ActionIcon
-                                variant="transparent"
-                                onClick={() =>
-                                    createSession(
-                                        Math.round(
-                                            (Date.now() + 1000 * 60 * 60 * 60) /
-                                                1000
-                                        )
-                                    )
-                                }
-                            >
-                                <IconCirclePlusFilled />
-                            </ActionIcon>
-                        </Tooltip>
+                        <>
+                            {sessionId && (
+                                <Tooltip label="Delete Session">
+                                    <ActionIcon
+                                        variant="transparent"
+                                        onClick={() => deleteSession()}
+                                    >
+                                        <IconCircleXFilled />
+                                    </ActionIcon>
+                                </Tooltip>
+                            )}
+                            {!sessionId && (
+                                <Tooltip label="Create Session">
+                                    <ActionIcon
+                                        variant="transparent"
+                                        onClick={() =>
+                                            createSession(
+                                                Math.round(
+                                                    (Date.now() +
+                                                        1000 * 60 * 60 * 60) /
+                                                        1000
+                                                )
+                                            )
+                                        }
+                                    >
+                                        <IconCirclePlusFilled />
+                                    </ActionIcon>
+                                </Tooltip>
+                            )}
+                        </>
                     }
                 />
                 {error && (

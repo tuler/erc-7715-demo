@@ -49,8 +49,18 @@ export const useAddInputSession = () => {
         }
     };
 
+    const deleteSession = () => {
+        if (sessionId) {
+            // TODO: actually revoke the session from the wallet
+            // for now just removing from application local storage
+            window.localStorage.removeItem("sessionId");
+            setSessionId(undefined);
+        }
+    };
+
     return {
         createSession,
+        deleteSession,
         sessionId,
         expiry,
     };
