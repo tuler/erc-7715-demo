@@ -1,4 +1,3 @@
-import type { Compute } from "@wagmi/core/internal";
 import {
     deserializePermissionAccount,
     toPermissionValidator,
@@ -32,8 +31,6 @@ import {
 } from "viem/account-abstraction";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { GrantPermissionsParameters } from "viem/experimental";
-import type { Storage } from "wagmi";
-import type { StorageItem } from "./ecsdaConnector";
 import {
     type SessionType,
     getPolicies,
@@ -59,56 +56,21 @@ const setStorageKey = <T>(key: string, value: T) => {
 export class KernelEIP1193Provider<
     entryPointVersion extends EntryPointVersion
 > extends EventEmitter {
-    // private readonly storage = new KernelLocalStorage("ZDWALLET");
     private kernelClient: KernelAccountClient<
         Transport,
         Chain,
         SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
     >;
 
-    private storage: Storage<StorageItem> | null | undefined;
-
     constructor(
         kernelClient: KernelAccountClient<
             Transport,
             Chain,
             SmartAccount<KernelSmartAccountImplementation<entryPointVersion>>
-        >,
-        storage?: Compute<Storage<StorageItem>> | null | undefined
+        >
     ) {
         super();
         this.kernelClient = kernelClient;
-        this.storage = storage;
-        const permissions =
-            kernelClient.account.entryPoint.version === "0.7"
-                ? {
-                      supported: true,
-                      permissionTypes: [
-                          "sudo",
-                          "contract-call",
-                          "rate-limit",
-                          "gas-limit",
-                          "signature",
-                      ],
-                  }
-                : {
-                      supported: false,
-                  };
-
-        const capabilities = {
-            [kernelClient.account.address]: {
-                [toHex(kernelClient.chain.id)]: {
-                    atomic: {
-                        status: "supported",
-                    },
-                    paymasterService: {
-                        supported: true,
-                    },
-                    permissions,
-                },
-            },
-        };
-        this.storage?.setItem("capabilities", capabilities);
     }
 
     getChainId() {
@@ -138,7 +100,10 @@ export class KernelEIP1193Provider<
                     params as [string, string]
                 );
             case "wallet_getCapabilities":
-                return this.handleWalletCapabilities();
+                console.log("wallet_getCapabilities", params);
+                return this.handleWalletCapabilities(
+                    params as [string, string[]]
+                );
             case "wallet_sendCalls":
                 return this.handleWalletSendCalls(
                     params as WalletSendCallsParameters
@@ -146,6 +111,7 @@ export class KernelEIP1193Provider<
             case "wallet_getCallsStatus":
                 return this.handleWalletGetCallStatus(params as [string]);
             case "wallet_grantPermissions":
+                console.log("wallet_grantPermissions", params);
                 return this.handleWalletGrantPermissions(
                     params as [GrantPermissionsParameters]
                 );
@@ -355,11 +321,31 @@ export class KernelEIP1193Provider<
         };
     }
 
-    private async handleWalletCapabilities() {
-        const capabilities = await this.storage?.getItem("capabilities");
-        return capabilities
-            ? capabilities[this.kernelClient.account.address]
-            : {};
+    private async handleWalletCapabilities(params: [string, string[]]) {
+        const [_accountAddress, chainIds] = params;
+        const capabilities = {
+            atomic: {
+                status: "supported",
+            },
+            paymasterService: {
+                supported: true,
+            },
+            permissions: {
+                supported: true,
+                permissionTypes: [
+                    "sudo",
+                    "contract-call",
+                    "rate-limit",
+                    "gas-limit",
+                    "signature",
+                ],
+            },
+        };
+        type Capabilities = typeof capabilities;
+        return chainIds.reduce<Record<string, Capabilities>>((obj, chainId) => {
+            obj[chainId] = capabilities;
+            return obj;
+        }, {});
     }
 
     private async handleWalletGetCallStatus(
@@ -421,11 +407,15 @@ export class KernelEIP1193Provider<
         if (this.kernelClient.account.entryPoint.version !== "0.7") {
             throw new Error("Permissions not supported with kernel v2");
         }
-        const capabilities = (await this.handleWalletCapabilities())[
-            toHex(this.kernelClient.chain.id)
-        ].permissions.permissionTypes;
+        const requestedPermissions = [
+            "sudo",
+            "contract-call",
+            "rate-limit",
+            "gas-limit",
+            "signature",
+        ];
 
-        validatePermissions(params[0], capabilities);
+        validatePermissions(params[0], requestedPermissions);
         const policies = getPolicies(params[0]);
         const permissions = params[0].permissions;
 

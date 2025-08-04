@@ -4,7 +4,13 @@ import {
     ProviderNotFoundError,
     createConnector,
 } from "@wagmi/core";
-import { signerToEcdsaValidator } from "@zerodev/ecdsa-validator";
+import {
+    PasskeyValidatorContractVersion,
+    WebAuthnMode,
+    deserializePasskeyValidator,
+    toPasskeyValidator,
+    toWebAuthnKey,
+} from "@zerodev/passkey-validator";
 import { createKernelAccount, createKernelAccountClient } from "@zerodev/sdk";
 import { KERNEL_V3_2, getEntryPoint } from "@zerodev/sdk/constants";
 import type { KernelValidator } from "@zerodev/sdk/types";
@@ -20,31 +26,40 @@ import {
     numberToHex,
 } from "viem";
 import { createPaymasterClient } from "viem/account-abstraction";
-import "viem/window";
 import { http } from "wagmi";
 import { KernelEIP1193Provider } from "./KernelEIP1193Provider";
 
 type ConnectorParameters = {
     chain: Chain;
+    name: string;
     rpcUrl: string;
     bundlerUrl: string;
     paymasterUrl?: string;
+    passkeyServerUrl: string;
 };
 
 // connector types
 type Provider = KernelEIP1193Provider<"0.7"> | undefined;
-type Properties = {};
-type StorageItem = {};
+type Properties = {
+    login: (params?: { passkeyName?: string }) => Promise<void>;
+    register: (params?: { passkeyName?: string }) => Promise<void>;
+};
+type StorageItem = {
+    passkeyValidator: string;
+};
 
-export const ecdsaConnectorId = "zerodevEcdsaSDK";
+export const passkeyConnectorId = "zerodevPasskeySDK";
 
-ecdsaConnector.type = "ecdsaConnector" as const;
-export function ecdsaConnector(params: ConnectorParameters) {
-    const { bundlerUrl, chain, paymasterUrl, rpcUrl } = params;
+passkeyConnector.type = "passkeyConnector" as const;
+export function passkeyConnector(params: ConnectorParameters) {
+    const { bundlerUrl, chain, name, passkeyServerUrl, paymasterUrl, rpcUrl } =
+        params;
     let walletProvider: KernelEIP1193Provider<"0.7"> | undefined;
     let accountsChanged: Connector["onAccountsChanged"] | undefined;
     let chainChanged: Connector["onChainChanged"] | undefined;
     let disconnect: Connector["onDisconnect"] | undefined;
+    let connectType: WebAuthnMode = WebAuthnMode.Register;
+    let passkeyName: string = name;
 
     const publicClient = createPublicClient({
         chain,
@@ -85,9 +100,19 @@ export function ecdsaConnector(params: ConnectorParameters) {
 
     return createConnector<Provider, Properties, StorageItem>((config) => {
         return {
-            id: ecdsaConnectorId,
-            name: "ZeroDev ECDSA",
-            type: ecdsaConnector.type,
+            id: passkeyConnectorId,
+            name: "ZeroDev Passkey",
+            type: passkeyConnector.type,
+
+            async register(params) {
+                passkeyName = params?.passkeyName ?? name;
+                connectType = WebAuthnMode.Register;
+            },
+
+            async login(params) {
+                passkeyName = params?.passkeyName ?? name;
+                connectType = WebAuthnMode.Login;
+            },
 
             async connect(params) {
                 const { chainId } = params ?? {};
@@ -123,17 +148,24 @@ export function ecdsaConnector(params: ConnectorParameters) {
                         return { accounts, chainId: chain.id };
                     }
 
-                    if (!window.ethereum) {
-                        throw new Error("No Ethereum provider found");
-                    }
-                    const validator = await signerToEcdsaValidator(
-                        publicClient,
-                        {
-                            entryPoint,
-                            kernelVersion,
-                            signer: window.ethereum,
-                        }
-                    );
+                    const webAuthnKey = await toWebAuthnKey({
+                        passkeyName: passkeyName ?? name,
+                        passkeyServerUrl,
+                        mode: connectType,
+                        passkeyServerHeaders: {},
+                    });
+
+                    const validator = await toPasskeyValidator(publicClient, {
+                        entryPoint,
+                        kernelVersion,
+                        validatorContractVersion:
+                            PasskeyValidatorContractVersion.V0_0_2,
+                        webAuthnKey,
+                    });
+
+                    // store passkeyValidator, for future use on page reload
+                    const serializedData = validator.getSerializedData();
+                    config.storage?.setItem("passkeyValidator", serializedData);
 
                     walletProvider = await createProvider(validator);
 
@@ -176,6 +208,9 @@ export function ecdsaConnector(params: ConnectorParameters) {
                     disconnect = undefined;
                 }
                 walletProvider = undefined;
+
+                // remove passkeyValidator from storage
+                config.storage?.removeItem("passkeyValidator");
             },
 
             async getAccounts() {
@@ -200,34 +235,37 @@ export function ecdsaConnector(params: ConnectorParameters) {
 
             async getProvider() {
                 if (!walletProvider) {
-                    if (!window.ethereum) {
-                        throw new Error("No Ethereum provider found");
-                    }
-
-                    const validator = await signerToEcdsaValidator(
-                        publicClient,
-                        {
-                            entryPoint,
-                            kernelVersion,
-                            signer: window.ethereum,
-                        }
+                    // load from storage if available
+                    const serializedData = await config.storage?.getItem(
+                        "passkeyValidator"
                     );
+                    if (serializedData) {
+                        // create passkeyValidator from stored serialized data
+                        const validator = await deserializePasskeyValidator(
+                            publicClient,
+                            {
+                                entryPoint,
+                                kernelVersion,
+                                serializedData,
+                            }
+                        );
 
-                    const provider = await createProvider(validator);
+                        const provider = await createProvider(validator);
 
-                    if (!accountsChanged) {
-                        accountsChanged = this.onAccountsChanged.bind(this);
-                        provider.on("accountsChanged", accountsChanged);
+                        if (!accountsChanged) {
+                            accountsChanged = this.onAccountsChanged.bind(this);
+                            provider.on("accountsChanged", accountsChanged);
+                        }
+                        if (!chainChanged) {
+                            chainChanged = this.onChainChanged.bind(this);
+                            provider.on("chainChanged", chainChanged);
+                        }
+                        if (!disconnect) {
+                            disconnect = this.onDisconnect.bind(this);
+                            provider.on("disconnect", disconnect);
+                        }
+                        walletProvider = provider;
                     }
-                    if (!chainChanged) {
-                        chainChanged = this.onChainChanged.bind(this);
-                        provider.on("chainChanged", chainChanged);
-                    }
-                    if (!disconnect) {
-                        disconnect = this.onDisconnect.bind(this);
-                        provider.on("disconnect", disconnect);
-                    }
-                    walletProvider = provider;
                 }
                 return walletProvider;
             },
@@ -340,10 +378,13 @@ export function ecdsaConnector(params: ConnectorParameters) {
                     disconnect = undefined;
                 }
                 walletProvider = undefined;
+
+                // remove passkeyValidator from storage
+                config.storage?.removeItem("passkeyValidator");
             },
         };
     });
 }
 
-type PasskeyCreateConnectorFn = ReturnType<typeof ecdsaConnector>;
+type PasskeyCreateConnectorFn = ReturnType<typeof passkeyConnector>;
 export type PasskeyConnector = Connector<PasskeyCreateConnectorFn>;

@@ -15,7 +15,7 @@ Run a local cartesi environment, build the application backend and deploy it usi
 cd backend
 pnpm i
 cartesi build
-cartesi run --services bundler,paymaster
+cartesi run --services bundler,paymaster,passkey
 ```
 
 ## Frontend

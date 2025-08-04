@@ -32,6 +32,9 @@ importers:
       '@zerodev/ecdsa-validator':
         specifier: ^5.4.9
         version: 5.4.9(@zerodev/sdk@5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
+      '@zerodev/passkey-validator':
+        specifier: ^5.5.5
+        version: 5.5.5(@zerodev/sdk@5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(@zerodev/webauthn-key@5.4.4(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
       '@zerodev/permissions':
         specifier: ^5.5.14
         version: 5.5.14(@zerodev/sdk@5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(@zerodev/webauthn-key@5.4.4(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
@@ -892,6 +895,13 @@ packages:
     resolution: {integrity: sha512-9NVE8/sQIKRo42UOoYKkNdmmHJY8VlT4t+2MHD2ipLg21cpbY9fS17TGZh61+Bl3qlqc8pP23I6f89z9im7kuA==}
     peerDependencies:
       '@zerodev/sdk': ^5.4.13
+      viem: ^2.28.0
+
+  '@zerodev/passkey-validator@5.5.5':
+    resolution: {integrity: sha512-dQrIEayZSrTzknitdqp5wsMHzgpcBtpwoMKgRql57lbNTIGPJ70VTZ5xuj88XPFDv5zNBlirBJb7y3Pv8AkjKw==}
+    peerDependencies:
+      '@zerodev/sdk': ^5.4.0
+      '@zerodev/webauthn-key': ^5.4.2
       viem: ^2.28.0
 
   '@zerodev/permissions@5.5.14':
@@ -3831,6 +3841,14 @@ snapshots:
       '@zerodev/sdk': 5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
       viem: 2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)
 
+  '@zerodev/passkey-validator@5.5.5(@zerodev/sdk@5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(@zerodev/webauthn-key@5.4.4(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))':
+    dependencies:
+      '@noble/curves': 1.9.2
+      '@simplewebauthn/browser': 8.3.7
+      '@zerodev/sdk': 5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
+      '@zerodev/webauthn-key': 5.4.4(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))
+      viem: 2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)
+
   '@zerodev/permissions@5.5.14(@zerodev/sdk@5.4.41(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(@zerodev/webauthn-key@5.4.4(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28)))(viem@2.33.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@6.0.5)(zod@3.25.28))':
     dependencies:
       '@simplewebauthn/browser': 9.0.1
@@ -4485,7 +4503,7 @@ snapshots:
   ox@0.6.7(typescript@5.9.2)(zod@3.25.28):
     dependencies:
       '@adraffy/ens-normalize': 1.11.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0

@@ -1,4 +1,5 @@
 import { ecdsaConnector } from "@/app/zerodev/ecsdaConnector";
+import { passkeyConnector } from "@/app/zerodev/passkeyConnector";
 import {
     ActionIcon,
     Alert,
@@ -38,6 +39,7 @@ type PermissionsCapabilities = WalletCapabilities<{
 const images = {
     [metaMask.type]: "/img/metamask.svg",
     [ecdsaConnector.type]: "/img/zerodev.png",
+    [passkeyConnector.type]: "/img/zerodev.png",
 };
 
 const ConnectorItem: FC<{ connector: Connector; connection?: Connection }> = ({
@@ -46,7 +48,8 @@ const ConnectorItem: FC<{ connector: Connector; connection?: Connection }> = ({
 }) => {
     const type = connector.type as
         | typeof metaMask.type
-        | typeof ecdsaConnector.type;
+        | typeof ecdsaConnector.type
+        | typeof passkeyConnector.type;
 
     const { accounts, chainId } = connection ?? {};
     const { disconnect } = useDisconnect();
