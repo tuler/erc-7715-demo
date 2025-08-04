@@ -4,15 +4,15 @@
     "description": "Tic Tac Toe",
     "dependencies": {
         "@deroll/app": "2.0.0-alpha.1",
-        "viem": "^2.30.5"
+        "viem": "^2.33.2"
     },
     "devDependencies": {
-        "@types/node": "^22.15.20",
-        "esbuild": "^0.25.4",
+        "@types/node": "^24.2.0",
+        "esbuild": "^0.25.8",
         "npm-run-all": "^4",
         "ts-node": "^10.9.2",
-        "typescript": "^5.8.3",
-        "vitest": "^3.1.4"
+        "typescript": "^5.9.2",
+        "vitest": "^3.2.4"
     },
     "scripts": {
         "build": "tsc && esbuild ./src/index.ts --bundle --outfile=dist/index.js --platform=node --target=node20",
@@ -21,6 +21,6 @@
     "keywords": [
         "cartesi"
     ],
-    "packageManager": "pnpm@10.11.0",
+    "packageManager": "pnpm@10.14.0",
     "license": "MIT"
 }
