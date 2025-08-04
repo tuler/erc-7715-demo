@@ -8,8 +8,6 @@ import type {
     KernelSmartAccountImplementation,
 } from "@zerodev/sdk";
 import { createKernelAccount, createKernelAccountClient } from "@zerodev/sdk";
-
-// biome-ignore lint/style/useNodejsImportProtocol: needed for event emitter functionality
 import { EventEmitter } from "events";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import type {
@@ -100,7 +98,6 @@ export class KernelEIP1193Provider<
                     params as [string, string]
                 );
             case "wallet_getCapabilities":
-                console.log("wallet_getCapabilities", params);
                 return this.handleWalletCapabilities(
                     params as [string, string[]]
                 );
@@ -111,7 +108,6 @@ export class KernelEIP1193Provider<
             case "wallet_getCallsStatus":
                 return this.handleWalletGetCallStatus(params as [string]);
             case "wallet_grantPermissions":
-                console.log("wallet_grantPermissions", params);
                 return this.handleWalletGrantPermissions(
                     params as [GrantPermissionsParameters]
                 );
@@ -322,7 +318,7 @@ export class KernelEIP1193Provider<
     }
 
     private async handleWalletCapabilities(params: [string, string[]]) {
-        const [_accountAddress, chainIds] = params;
+        const chainIds = params[1] || ["0x0"];
         const capabilities = {
             atomic: {
                 status: "supported",
