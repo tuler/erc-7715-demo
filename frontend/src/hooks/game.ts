@@ -17,7 +17,6 @@ import { useSendCalls, useWaitForCallsStatus } from "wagmi";
 
 const application = process.env
     .NEXT_PUBLIC_APPLICATION_ADDRESS as `0x${string}`;
-const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL as string;
 
 export type InputAdded = ContractEventArgsFromTopics<
     typeof inputBoxAbi,
@@ -131,10 +130,6 @@ export const useTicTacToe = () => {
                 },
             ],
             capabilities: {
-                // use paymaster if configured (jaw sponsors gas on its supported chains without one)
-                ...(paymasterUrl
-                    ? { paymasterService: { url: paymasterUrl } }
-                    : {}),
                 // optional session usage, with permission granted through ERC-7715
                 ...(sessionId ? { permissions: { id: sessionId } } : {}),
             },
