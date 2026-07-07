@@ -10,6 +10,7 @@
     "dependencies": {
         "@cartesi/viem": "2.0.0-alpha.31",
         "@cartesi/wagmi": "2.0.0-alpha.35",
+        "@jaw.id/core": "^1",
         "@jaw.id/wagmi": "^1.0.5",
         "@mantine/core": "^9.4.1",
         "@mantine/hooks": "^9.4.1",

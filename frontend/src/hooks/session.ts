@@ -3,65 +3,80 @@
 import { inputBoxAbi, inputBoxAddress } from "@cartesi/viem/abi";
 import { useGrantPermissions, useRevokePermissions } from "@jaw.id/wagmi";
 import { useEffect, useState } from "react";
-import { getAbiItem } from "viem";
+import { type Hex, getAbiItem } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { formatAbiItem } from "viem/utils";
-import { useConnection } from "wagmi";
+
+export type Session = {
+    // id of the ERC-7715 permission granted by the connected account
+    permissionId: Hex;
+    // private key of the burner wallet that is the spender of the permission
+    privateKey: Hex;
+    // timestamp the permission is valid until (unix seconds)
+    expiry: number;
+};
+
+const storageKey = "session";
 
 export const useAddInputSession = () => {
-    const { address } = useConnection();
     const { mutateAsync: grantPermissions } = useGrantPermissions();
     const { mutateAsync: revokePermissions } = useRevokePermissions();
-    const [sessionId, setSessionId] = useState<`0x${string}`>();
-    const [expiry, setExpiry] = useState<number | undefined>();
+    const [session, setSession] = useState<Session>();
 
     useEffect(() => {
-        // initialize session id from local storage
-        const storedSessionId = window.localStorage.getItem("sessionId");
-        if (storedSessionId) {
-            setSessionId(storedSessionId as `0x${string}`);
+        // initialize session from local storage
+        const storedSession = window.localStorage.getItem(storageKey);
+        if (storedSession) {
+            setSession(JSON.parse(storedSession));
         }
     }, []);
 
     const createSession = async (expiry: number) => {
-        if (address) {
-            const result = await grantPermissions({
-                expiry,
-                // the connected account itself uses the permission,
-                // sending calls with the permissions capability
-                spender: address,
-                permissions: {
-                    calls: [
-                        {
-                            target: inputBoxAddress,
-                            functionSignature: formatAbiItem(
-                                getAbiItem({
-                                    abi: inputBoxAbi,
-                                    name: "addInput",
-                                })
-                            ),
-                        },
-                    ],
-                },
-            });
-            setSessionId(result.permissionId);
-            window.localStorage.setItem("sessionId", result.permissionId);
-            setExpiry(result.end);
-        }
+        // create a burner wallet for the session, which acts as the spender of the permission
+        const privateKey = generatePrivateKey();
+        const burner = privateKeyToAccount(privateKey);
+
+        // grant permission to the burner wallet to call addInput on the InputBox
+        const result = await grantPermissions({
+            expiry,
+            spender: burner.address,
+            permissions: {
+                calls: [
+                    {
+                        target: inputBoxAddress,
+                        functionSignature: formatAbiItem(
+                            getAbiItem({
+                                abi: inputBoxAbi,
+                                name: "addInput",
+                            })
+                        ),
+                    },
+                ],
+            },
+        });
+
+        const session: Session = {
+            permissionId: result.permissionId,
+            privateKey,
+            expiry: result.end,
+        };
+        window.localStorage.setItem(storageKey, JSON.stringify(session));
+        setSession(session);
     };
 
     const deleteSession = async () => {
-        if (sessionId) {
-            await revokePermissions({ id: sessionId });
-            window.localStorage.removeItem("sessionId");
-            setSessionId(undefined);
-            setExpiry(undefined);
+        if (session) {
+            await revokePermissions({ id: session.permissionId });
+            window.localStorage.removeItem(storageKey);
+            setSession(undefined);
         }
     };
 
     return {
         createSession,
         deleteSession,
-        sessionId,
-        expiry,
+        session,
+        sessionId: session?.permissionId,
+        expiry: session?.expiry,
     };
 };

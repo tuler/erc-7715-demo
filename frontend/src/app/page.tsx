@@ -17,7 +17,8 @@ import {
 import { IconCirclePlusFilled, IconCircleXFilled } from "@tabler/icons-react";
 
 function App() {
-    const { createSession, deleteSession, sessionId } = useAddInputSession();
+    const { createSession, deleteSession, session, sessionId } =
+        useAddInputSession();
     const { error, game, play, isPending } = useTicTacToe();
 
     return (
@@ -77,7 +78,7 @@ function App() {
                 <Board
                     xBoard={game.xBoard}
                     oBoard={game.oBoard}
-                    onCellClick={(cell) => play(cell, sessionId)}
+                    onCellClick={(cell) => play(cell, session)}
                     loading={error ? false : isPending}
                 />
                 <Scoreboard
