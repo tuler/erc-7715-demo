@@ -1,0 +1,38 @@
+name: release
+
+on:
+    push:
+        tags:
+            - "*"
+
+permissions:
+    contents: write
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+
+            # emulation for the riscv64 stages of the backend Dockerfile
+            - uses: docker/setup-qemu-action@v4
+              with:
+                  platforms: linux/riscv64
+
+            - uses: docker/setup-buildx-action@v4
+
+            - name: Install cartesi CLI
+              run: npm install -g @cartesi/cli@2.0.0-alpha.35
+
+            - name: Build cartesi machine snapshot
+              working-directory: backend
+              run: cartesi build
+
+            - name: Package snapshot
+              run: tar -czf cartesi-machine-snapshot-${{ github.ref_name }}.tar.gz -C backend/.cartesi image
+
+            - name: Publish release
+              uses: softprops/action-gh-release@v3
+              with:
+                  files: cartesi-machine-snapshot-${{ github.ref_name }}.tar.gz
+                  generate_release_notes: true
