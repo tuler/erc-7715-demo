@@ -29,7 +29,7 @@ jobs:
               run: cartesi build
 
             - name: Package snapshot
-              run: tar -czf cartesi-machine-snapshot-${{ github.ref_name }}.tar.gz -C backend/.cartesi image
+              run: tar -czf cartesi-machine-snapshot-${{ github.ref_name }}.tar.gz -C backend/.cartesi/image .
 
             - name: Publish release
               uses: softprops/action-gh-release@v3
