@@ -55,7 +55,7 @@ type State = {
 };
 
 export const useTicTacToe = () => {
-    const { data, error, isPending, sendCalls } = useSendCalls();
+    const { data, error, isPending, mutate: sendCalls } = useSendCalls();
     const {
         isPending: isConfirming,
         isSuccess: isConfirmed,
@@ -110,14 +110,14 @@ export const useTicTacToe = () => {
         if (outputs) {
             // read first output, which is a notice with the game state
             const output = outputs.data[0];
-            if (output && output.decodedData.type === "Notice") {
+            if (output?.decodedData?.type === "Notice") {
                 setGame(JSON.parse(hexToString(output.decodedData.payload)));
             }
             refetch();
         }
     }, [outputs, refetch]);
 
-    const play = (index: number, sessionId?: string) => {
+    const play = (index: number, sessionId?: `0x${string}`) => {
         sendCalls({
             calls: [
                 {
@@ -134,9 +134,8 @@ export const useTicTacToe = () => {
                 paymasterService: {
                     url: paymasterUrl, // always use paymaster
                 },
-                permissions: {
-                    sessionId, // optional session usage
-                },
+                // optional session usage, with permission granted through ERC-7715
+                ...(sessionId ? { permissions: { id: sessionId } } : {}),
             },
         });
     };

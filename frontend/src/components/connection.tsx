@@ -1,5 +1,4 @@
-import { ecdsaConnector } from "@/app/zerodev/ecsdaConnector";
-import { passkeyConnector } from "@/app/zerodev/passkeyConnector";
+import { jaw } from "@jaw.id/wagmi";
 import {
     ActionIcon,
     Alert,
@@ -15,14 +14,16 @@ import {
     IconCircleCheckFilled,
     IconPlugConnectedX,
 } from "@tabler/icons-react";
-import type { Connection, Connector } from "@wagmi/core";
 import type { FC } from "react";
 import type { WalletCapabilities } from "viem";
 import {
-    useAccount,
+    type Connection,
+    type Connector,
     useCapabilities,
     useConnect,
+    useConnection,
     useConnections,
+    useConnectors,
     useDisconnect,
 } from "wagmi";
 import { metaMask } from "wagmi/connectors";
@@ -38,21 +39,17 @@ type PermissionsCapabilities = WalletCapabilities<{
 
 const images = {
     [metaMask.type]: "/img/metamask.svg",
-    [ecdsaConnector.type]: "/img/zerodev.png",
-    [passkeyConnector.type]: "/img/zerodev.png",
+    [jaw.type]: "/img/jaw.png",
 };
 
 const ConnectorItem: FC<{ connector: Connector; connection?: Connection }> = ({
     connector,
     connection,
 }) => {
-    const type = connector.type as
-        | typeof metaMask.type
-        | typeof ecdsaConnector.type
-        | typeof passkeyConnector.type;
+    const type = connector.type as typeof metaMask.type | typeof jaw.type;
 
     const { accounts, chainId } = connection ?? {};
-    const { disconnect } = useDisconnect();
+    const { mutate: disconnect } = useDisconnect();
 
     const { data: capabilities, error } = useCapabilities({
         account: accounts?.[0],
@@ -113,13 +110,14 @@ const ConnectorItem: FC<{ connector: Connector; connection?: Connection }> = ({
 
 export const ConnectionPanel: FC = () => {
     // list of all connectors
-    const { connectors, connect, error } = useConnect();
+    const connectors = useConnectors();
+    const { mutate: connect, error } = useConnect();
 
     // list of active connections
     const connections = useConnections();
 
     // current connected connector
-    const { connector } = useAccount();
+    const { connector } = useConnection();
 
     const connectById = (connectorId: string) => {
         const connector = connectors.find((c) => c.id === connectorId);
