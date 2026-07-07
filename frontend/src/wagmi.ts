@@ -1,7 +1,7 @@
 import { jaw } from "@jaw.id/wagmi";
 import { defineChain } from "viem";
 import { cookieStorage, createConfig, createStorage, http } from "wagmi";
-import { cannon } from "wagmi/chains";
+import { baseSepolia, cannon } from "wagmi/chains";
 import { metaMask } from "wagmi/connectors";
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL as string;
@@ -18,14 +18,17 @@ export function getConfig() {
     const jawConnector = jaw({
         apiKey: jawApiKey,
         appName: "TicTacToe",
-        defaultChainId: cartesi.id,
+        defaultChainId: baseSepolia.id,
+        preference: {
+            showTestnets: true,
+        },
         paymasters: {
             [cartesi.id]: { url: paymasterUrl },
         },
     });
 
     return createConfig({
-        chains: [cartesi],
+        chains: [cartesi, baseSepolia],
         connectors: [metaMaskConnector, jawConnector],
         storage: createStorage({
             storage: cookieStorage,
@@ -33,6 +36,7 @@ export function getConfig() {
         ssr: true,
         transports: {
             [cartesi.id]: http(),
+            [baseSepolia.id]: http(),
         },
     });
 }

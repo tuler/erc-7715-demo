@@ -131,9 +131,10 @@ export const useTicTacToe = () => {
                 },
             ],
             capabilities: {
-                paymasterService: {
-                    url: paymasterUrl, // always use paymaster
-                },
+                // use paymaster if configured (jaw sponsors gas on its supported chains without one)
+                ...(paymasterUrl
+                    ? { paymasterService: { url: paymasterUrl } }
+                    : {}),
                 // optional session usage, with permission granted through ERC-7715
                 ...(sessionId ? { permissions: { id: sessionId } } : {}),
             },
