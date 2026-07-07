@@ -1,5 +1,5 @@
 import { createApp } from "@deroll/app";
-import { hexToNumber, stringToHex } from "viem";
+import { hexToNumber, stringToHex, toHex } from "viem";
 
 // stats
 let xWins = 0;
@@ -39,12 +39,12 @@ function boardToString(xBoard: number, oBoard: number) {
 }
 
 // create application
-const app = createApp({ url: "http://127.0.0.1:5004" });
+const app = createApp();
 
 // log incoming advance request
 app.addAdvanceHandler(async ({ metadata, payload }) => {
     // payload is a hex string of the cell number
-    const cell = hexToNumber(payload, { size: 1, signed: false });
+    const cell = hexToNumber(toHex(payload), { size: 1, signed: false });
 
     // check if the cell is in bounds and empty
     if (cell < 0 || cell >= 9) {
@@ -57,7 +57,7 @@ app.addAdvanceHandler(async ({ metadata, payload }) => {
         return "reject";
     }
 
-    console.log(`${metadata.msg_sender} plays ${turn} at ${cell}`);
+    console.log(`${metadata.msgSender} plays ${turn} at ${cell}`);
 
     // update the board
     if (turn === "x") {

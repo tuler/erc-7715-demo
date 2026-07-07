@@ -3,24 +3,25 @@
     "version": "0.1.0",
     "description": "Tic Tac Toe",
     "dependencies": {
-        "@deroll/app": "2.0.0-alpha.1",
-        "viem": "^2.33.2"
+        "@deroll/app": "2.0.0-alpha.9",
+        "viem": "^2.54.6"
     },
     "devDependencies": {
-        "@types/node": "^24.2.0",
-        "esbuild": "^0.25.8",
+        "@types/node": "^26",
+        "esbuild": "^0.28.1",
         "npm-run-all": "^4",
         "ts-node": "^10.9.2",
-        "typescript": "^5.9.2",
-        "vitest": "^3.2.4"
+        "typescript": "^6",
+        "vitest": "^4"
     },
     "scripts": {
-        "build": "tsc && esbuild ./src/index.ts --bundle --outfile=dist/index.js --platform=node --target=node20",
-        "start": "ROLLUP_HTTP_SERVER_URL=\"http://127.0.0.1:5004\" ts-node src/index.ts"
+        "build": "node esbuild.mts",
+        "clean": "rm -rf node_modules && rm -rf dist",
+        "start": "ts-node src/index.ts"
     },
     "keywords": [
         "cartesi"
     ],
-    "packageManager": "pnpm@10.14.0",
+    "packageManager": "pnpm@11.10.0",
     "license": "MIT"
 }

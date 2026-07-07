@@ -2,19 +2,23 @@
 
 # This enforces that the packages downloaded from the repositories are the same
 # for the defined date, no matter when the image is built.
-ARG APT_UPDATE_SNAPSHOT=20250424T030400Z
+ARG APT_UPDATE_SNAPSHOT=20260415T030400Z
+ARG MACHINE_GUEST_TOOLS_VERSION=0.17.2
+ARG MACHINE_GUEST_TOOLS_SHA256SUM=c077573dbcf0cdc146adf14b480bfe454ca63aa4d3e8408c5487f550a5b77a41
 
 ################################################################################
 # riscv64 base stage
-FROM --platform=linux/riscv64 cartesi/node:22.14.0-noble-slim AS base
+FROM --platform=linux/riscv64 cartesi/node:24.17.0-noble-slim AS base
 
 ARG APT_UPDATE_SNAPSHOT
 ARG DEBIAN_FRONTEND=noninteractive
 RUN <<EOF
 set -eu
 apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl
+apt-get install -y --no-install-recommends ca-certificates
 apt-get update --snapshot=${APT_UPDATE_SNAPSHOT}
+apt-get remove -y --purge ca-certificates
+apt-get autoremove -y --purge
 EOF
 
 ################################################################################
@@ -24,15 +28,24 @@ EOF
 # If any needed dependencies rely on native binaries, you must use
 # a riscv64 image such as cartesi/node:20-jammy for the build stage,
 # to ensure that the appropriate binaries will be generated.
-FROM --platform=$BUILDPLATFORM node:22.14.0-bookworm AS build-stage
+FROM --platform=$BUILDPLATFORM oven/bun:1 AS build-stage
 
 WORKDIR /opt/cartesi/dapp
-RUN corepack enable
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json bun.lock ./
+RUN bun ci
 COPY . .
-RUN pnpm build
+RUN bun run build
+
+# Stage the runtime files: the JS bundle plus @deroll/cmio's native addon,
+# which esbuild cannot inline and must be required at runtime. npm's flat layout
+# keeps the addon and its node-gyp-build loader as real dirs at the top level, so
+# copy both next to the bundle.
+
+RUN mkdir -p rootfs/node_modules/@deroll \
+ && cp dist/index.js rootfs/index.js \
+ && cp -R node_modules/@deroll/cmio rootfs/node_modules/@deroll/ \
+ && cp -R node_modules/node-gyp-build rootfs/node_modules/node-gyp-build
 
 ################################################################################
 # runtime stage: produces final image that will be executed
@@ -42,30 +55,27 @@ RUN pnpm build
 # performance when loading the Cartesi Machine.
 FROM base
 
-ARG MACHINE_GUEST_TOOLS_VERSION=0.17.1
+ARG MACHINE_GUEST_TOOLS_VERSION
+ARG MACHINE_GUEST_TOOLS_SHA256SUM
+ADD --checksum=sha256:${MACHINE_GUEST_TOOLS_SHA256SUM} \
+  https://github.com/cartesi/machine-guest-tools/releases/download/v${MACHINE_GUEST_TOOLS_VERSION}/machine-guest-tools_riscv64.deb \
+  /tmp/machine-guest-tools_riscv64.deb
+
 ARG DEBIAN_FRONTEND=noninteractive
 RUN <<EOF
 set -e
 apt-get install -y --no-install-recommends \
-  busybox-static
-
-cd /tmp
-busybox wget https://github.com/cartesi/machine-guest-tools/releases/download/v${MACHINE_GUEST_TOOLS_VERSION}/machine-guest-tools_riscv64.deb
-echo "96625d97354c1cc905a8630f3d715f64b14bc5b89f3e30913d2eb02da3a01f20a7784d32c2ed340ca401dce4d1bc0e6bebfc3fbb3808725225c5793b16fa6ef4 /tmp/machine-guest-tools_riscv64.deb" \
-  | sha512sum -c
-apt-get install -y --no-install-recommends \
+  busybox-static \
   /tmp/machine-guest-tools_riscv64.deb
-rm /tmp/machine-guest-tools_riscv64.deb
 
+rm /tmp/machine-guest-tools_riscv64.deb
 rm -rf /var/lib/apt/lists/* /var/log/* /var/cache/*
 EOF
 
 ENV PATH="/opt/cartesi/bin:${PATH}"
 
 WORKDIR /opt/cartesi/dapp
-COPY --from=build-stage /opt/cartesi/dapp/dist .
+COPY --from=build-stage /opt/cartesi/dapp/rootfs .
 
-ENV ROLLUP_HTTP_SERVER_URL="http://127.0.0.1:5004"
-
-ENTRYPOINT ["rollup-init"]
-CMD ["node", "index.js"]
+ENTRYPOINT ["node"]
+CMD ["index.js"]
