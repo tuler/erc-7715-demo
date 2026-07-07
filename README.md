@@ -29,6 +29,7 @@ Configure the environment in `frontend/.env` (or `.env.local`):
 - `NEXT_PUBLIC_JAW_API_KEY`: JAW API key, from [dashboard.jaw.id](https://dashboard.jaw.id)
 - `NEXT_PUBLIC_APPLICATION_ADDRESS`: address of the Cartesi application
 - `NEXT_PUBLIC_CARTESI_RPC_URL`: URL of the Cartesi node RPC endpoint
+- `NEXT_PUBLIC_PAYMASTER_URL`: URL of an ERC-7677 paymaster on Base Sepolia (e.g. [Pimlico](https://www.pimlico.io)), required for gas sponsorship of session plays, since the session burner wallet holds no funds
 
 Then run the development server:
 

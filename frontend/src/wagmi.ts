@@ -4,6 +4,7 @@ import { baseSepolia } from "wagmi/chains";
 import { metaMask } from "wagmi/connectors";
 
 const jawApiKey = process.env.NEXT_PUBLIC_JAW_API_KEY as string;
+const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 
 export function getConfig() {
     const metaMaskConnector = metaMask();
@@ -14,6 +15,10 @@ export function getConfig() {
         preference: {
             showTestnets: true,
         },
+        // sponsor gas of transactions sent through the connector
+        ...(paymasterUrl
+            ? { paymasters: { [baseSepolia.id]: { url: paymasterUrl } } }
+            : {}),
     });
 
     return createConfig({

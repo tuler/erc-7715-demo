@@ -21,6 +21,7 @@ import type { Session } from "./session";
 const application = process.env
     .NEXT_PUBLIC_APPLICATION_ADDRESS as `0x${string}`;
 const apiKey = process.env.NEXT_PUBLIC_JAW_API_KEY as string;
+const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 
 export type InputAdded = ContractEventArgsFromTopics<
     typeof inputBoxAbi,
@@ -154,9 +155,13 @@ export const useTicTacToe = () => {
         setSessionCallResult(undefined);
         try {
             // load the burner wallet as the spender smart account
+            // eip7702 keeps the burner EOA address, which must match the
+            // spender address the permission was granted to
+            // the paymaster sponsors gas, as the burner wallet has no funds
             const spender = await Account.fromLocalAccount(
-                { apiKey, chainId },
-                privateKeyToAccount(session.privateKey)
+                { apiKey, chainId, paymasterUrl },
+                privateKeyToAccount(session.privateKey),
+                { eip7702: true }
             );
 
             // execute the call through the permission manager
