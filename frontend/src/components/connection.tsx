@@ -1,3 +1,4 @@
+import { sessionConnector } from "@/connectors/session";
 import { jaw } from "@jaw.id/wagmi";
 import {
     ActionIcon,
@@ -109,8 +110,10 @@ const ConnectorItem: FC<{ connector: Connector; connection?: Connection }> = ({
 };
 
 export const ConnectionPanel: FC = () => {
-    // list of all connectors
-    const connectors = useConnectors();
+    // list of all connectors, except the internal session connector
+    const connectors = useConnectors().filter(
+        (c) => c.type !== sessionConnector.type
+    );
     const { mutate: connect, error } = useConnect();
 
     // list of active connections

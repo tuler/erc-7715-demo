@@ -4,24 +4,27 @@ import {
     useProcessedInputCount,
     useWaitForInput,
 } from "@cartesi/wagmi";
-import { Account, type CallStatusResponse } from "@jaw.id/core";
 import { useEffect, useState } from "react";
 import {
     type ContractEventArgsFromTopics,
     type Log,
+    type WalletCallReceipt,
     encodeFunctionData,
     hexToString,
     numberToHex,
     parseEventLogs,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { useChainId, useSendCalls, useWaitForCallsStatus } from "wagmi";
+import {
+    type Connector,
+    useConnectors,
+    useSendCalls,
+    useWaitForCallsStatus,
+} from "wagmi";
+import { sessionConnector } from "@/connectors/session";
 import type { Session } from "./session";
 
 const application = process.env
     .NEXT_PUBLIC_APPLICATION_ADDRESS as `0x${string}`;
-const apiKey = process.env.NEXT_PUBLIC_JAW_API_KEY as string;
-const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL;
 
 export type InputAdded = ContractEventArgsFromTopics<
     typeof inputBoxAbi,
@@ -29,24 +32,18 @@ export type InputAdded = ContractEventArgsFromTopics<
     true
 >;
 
-// minimal receipt shape, compatible with receipts from both wagmi and @jaw.id/core
-type ReceiptLike = {
-    logs: {
-        address: `0x${string}`;
-        data: `0x${string}`;
-        topics: `0x${string}`[];
-    }[];
-};
-
-export const getInputsAdded = (receipt: ReceiptLike): InputAdded[] => {
+export const getInputsAdded = (
+    receipt: WalletCallReceipt<bigint, "success" | "reverted">
+): InputAdded[] => {
     const transactionIndex = 0;
-    const logs = receipt.logs.map((log, logIndex) => ({
+    const logs: Log[] = receipt.logs.map((log, logIndex) => ({
+        ...receipt,
         ...log,
         topics: [log.topics[0], ...log.topics.slice(1)],
         logIndex,
         transactionIndex,
         removed: false,
-    })) as unknown as Log[];
+    }));
     const parsedLogs = parseEventLogs({
         abi: inputBoxAbi,
         logs,
@@ -65,19 +62,26 @@ type State = {
 };
 
 export const useTicTacToe = () => {
-    const chainId = useChainId();
-    const { data, error, isPending, mutate: sendCalls } = useSendCalls();
+    // connector that plays through the session burner wallet
+    const connectors = useConnectors();
+    const burner = connectors.find((c) => c.type === sessionConnector.type);
+
+    const {
+        data,
+        error,
+        isPending,
+        mutate: sendCalls,
+        variables,
+    } = useSendCalls();
     const {
         isPending: isConfirming,
         isSuccess: isConfirmed,
         data: callResult,
-    } = useWaitForCallsStatus({ id: data?.id });
-
-    // state of calls sent by the session burner wallet
-    const [sessionCallResult, setSessionCallResult] =
-        useState<CallStatusResponse>();
-    const [isSessionPending, setIsSessionPending] = useState(false);
-    const [sessionError, setSessionError] = useState<Error>();
+    } = useWaitForCallsStatus({
+        // query the status from the same connector that sent the calls
+        connector: variables?.connector as Connector | undefined,
+        id: data?.id,
+    });
 
     const [inputIndex, setInputIndex] = useState<bigint>();
     const { data: processedInputCount, refetch } = useProcessedInputCount({
@@ -93,14 +97,13 @@ export const useTicTacToe = () => {
         turn: "x",
     });
 
-    // read input index from the transaction receipt, from either play method
-    const receipts = callResult?.receipts ?? sessionCallResult?.receipts;
+    // read input index from the transaction receipt
     useEffect(() => {
-        if (receipts) {
-            const inputsAdded = receipts.flatMap(getInputsAdded);
+        if (callResult?.receipts) {
+            const inputsAdded = callResult.receipts.flatMap(getInputsAdded);
             setInputIndex(inputsAdded[0]?.index);
         }
-    }, [receipts]);
+    }, [callResult?.receipts]);
 
     // wait for the input to be processed
     const { data: input, isPending: isInputPending } = useWaitForInput({
@@ -135,80 +138,33 @@ export const useTicTacToe = () => {
         }
     }, [outputs, refetch]);
 
-    const addInputCall = (index: number) => ({
-        to: inputBoxAddress,
-        data: encodeFunctionData({
-            abi: inputBoxAbi,
-            functionName: "addInput",
-            args: [
-                application,
-                numberToHex(index, { size: 1, signed: false }), // input is the index of the clicked cell [0-8]
-            ],
-        }),
-    });
-
-    // play through the session burner wallet, spending the ERC-7715 permission,
-    // without any user interaction
-    const playWithSession = async (index: number, session: Session) => {
-        setIsSessionPending(true);
-        setSessionError(undefined);
-        setSessionCallResult(undefined);
-        try {
-            // load the smart account owned by the burner wallet, which is
-            // the spender the permission was granted to
-            // the paymaster sponsors gas, as the account has no funds
-            const spender = await Account.fromLocalAccount(
-                { apiKey, chainId, paymasterUrl },
-                privateKeyToAccount(session.privateKey)
-            );
-
-            // execute the call through the permission manager
-            const { id } = await spender.sendCalls([addInputCall(index)], {
-                permissionId: session.permissionId,
-            });
-
-            // wait for the call to be confirmed
-            // status codes: 100=pending, 200=completed, 400=failed, 500=reverted
-            let status = await spender.getCallStatus(id);
-            for (let i = 0; (!status || status.status === 100) && i < 60; i++) {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-                status = await spender.getCallStatus(id);
-            }
-            if (!status || status.status === 100) {
-                throw new Error("Timed out waiting for call confirmation");
-            }
-            if (status.status !== 200) {
-                throw new Error(`Call failed with status ${status.status}`);
-            }
-            setSessionCallResult(status);
-        } catch (err) {
-            setSessionError(
-                err instanceof Error ? err : new Error(String(err))
-            );
-        } finally {
-            setIsSessionPending(false);
-        }
-    };
-
     const play = (index: number, session?: Session) => {
-        if (session) {
-            playWithSession(index, session);
-        } else {
-            // play through the connected wallet
-            sendCalls({ calls: [addInputCall(index)] });
-        }
+        sendCalls({
+            calls: [
+                {
+                    to: inputBoxAddress,
+                    data: encodeFunctionData({
+                        abi: inputBoxAbi,
+                        functionName: "addInput",
+                        args: [
+                            application,
+                            numberToHex(index, { size: 1, signed: false }), // input is the index of the clicked cell [0-8]
+                        ],
+                    }),
+                },
+            ],
+            // play through the session connector when a session exists,
+            // otherwise through the current connected wallet
+            ...(session && burner ? { connector: burner } : {}),
+        });
     };
 
     return {
-        error: error ?? sessionError,
+        error,
         game,
         isConfirmed,
         play,
         isPending:
-            isConfirming ||
-            isPending ||
-            isSessionPending ||
-            isInputPending ||
-            isOutputsPending,
+            isConfirming || isPending || isInputPending || isOutputsPending,
     };
 };

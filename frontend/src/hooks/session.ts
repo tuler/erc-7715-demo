@@ -4,23 +4,29 @@ import { inputBoxAbi, inputBoxAddress } from "@cartesi/viem/abi";
 import { Account } from "@jaw.id/core";
 import { useGrantPermissions, useRevokePermissions } from "@jaw.id/wagmi";
 import { useEffect, useState } from "react";
-import { type Hex, getAbiItem } from "viem";
+import { getAbiItem } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { formatAbiItem } from "viem/utils";
-import { useChainId } from "wagmi";
+import {
+    useChainId,
+    useConnect,
+    useConnection,
+    useConnections,
+    useConnectors,
+    useDisconnect,
+    useSwitchConnection,
+} from "wagmi";
+import {
+    type Session,
+    clearSession,
+    loadSession,
+    saveSession,
+    sessionConnector,
+} from "@/connectors/session";
 
 const apiKey = process.env.NEXT_PUBLIC_JAW_API_KEY as string;
 
-export type Session = {
-    // id of the ERC-7715 permission granted by the connected account
-    permissionId: Hex;
-    // private key of the burner wallet that is the spender of the permission
-    privateKey: Hex;
-    // timestamp the permission is valid until (unix seconds)
-    expiry: number;
-};
-
-const storageKey = "session";
+export type { Session };
 
 export const useAddInputSession = () => {
     const chainId = useChainId();
@@ -28,13 +34,43 @@ export const useAddInputSession = () => {
     const { mutateAsync: revokePermissions } = useRevokePermissions();
     const [session, setSession] = useState<Session>();
 
+    // connector that plays through the session burner wallet
+    const connectors = useConnectors();
+    const connector = connectors.find((c) => c.type === sessionConnector.type);
+    const connections = useConnections();
+    const isConnected = connections.some(
+        (c) => c.connector.id === connector?.id
+    );
+    const { connector: currentConnector } = useConnection();
+    const { mutateAsync: connect } = useConnect();
+    const { mutateAsync: disconnect } = useDisconnect();
+    const { mutate: switchConnection } = useSwitchConnection();
+
     useEffect(() => {
         // initialize session from local storage
-        const storedSession = window.localStorage.getItem(storageKey);
-        if (storedSession) {
-            setSession(JSON.parse(storedSession));
-        }
+        setSession(loadSession());
     }, []);
+
+    // keep the session connector connected while there is a session,
+    // without making it the current connection
+    useEffect(() => {
+        if (session && connector && !isConnected) {
+            connect({ connector })
+                .then(() => {
+                    if (currentConnector) {
+                        switchConnection({ connector: currentConnector });
+                    }
+                })
+                .catch(() => {});
+        }
+    }, [
+        session,
+        connector,
+        isConnected,
+        connect,
+        currentConnector,
+        switchConnection,
+    ]);
 
     const createSession = async (expiry: number) => {
         // create a burner wallet for the session
@@ -70,14 +106,20 @@ export const useAddInputSession = () => {
             privateKey,
             expiry: result.end,
         };
-        window.localStorage.setItem(storageKey, JSON.stringify(session));
-        setSession(session);
+        saveSession(session);
+        setSession(session); // the effect above connects the session connector
     };
 
     const deleteSession = async () => {
         if (session) {
+            // revoke the permission, through the connected user wallet
             await revokePermissions({ id: session.permissionId });
-            window.localStorage.removeItem(storageKey);
+
+            // disconnect the session connector
+            if (connector && isConnected) {
+                await disconnect({ connector });
+            }
+            clearSession();
             setSession(undefined);
         }
     };
