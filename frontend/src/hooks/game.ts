@@ -154,14 +154,12 @@ export const useTicTacToe = () => {
         setSessionError(undefined);
         setSessionCallResult(undefined);
         try {
-            // load the burner wallet as the spender smart account
-            // eip7702 keeps the burner EOA address, which must match the
-            // spender address the permission was granted to
-            // the paymaster sponsors gas, as the burner wallet has no funds
+            // load the smart account owned by the burner wallet, which is
+            // the spender the permission was granted to
+            // the paymaster sponsors gas, as the account has no funds
             const spender = await Account.fromLocalAccount(
                 { apiKey, chainId, paymasterUrl },
-                privateKeyToAccount(session.privateKey),
-                { eip7702: true }
+                privateKeyToAccount(session.privateKey)
             );
 
             // execute the call through the permission manager

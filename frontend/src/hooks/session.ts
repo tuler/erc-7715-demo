@@ -1,11 +1,15 @@
 "use client";
 
 import { inputBoxAbi, inputBoxAddress } from "@cartesi/viem/abi";
+import { Account } from "@jaw.id/core";
 import { useGrantPermissions, useRevokePermissions } from "@jaw.id/wagmi";
 import { useEffect, useState } from "react";
 import { type Hex, getAbiItem } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { formatAbiItem } from "viem/utils";
+import { useChainId } from "wagmi";
+
+const apiKey = process.env.NEXT_PUBLIC_JAW_API_KEY as string;
 
 export type Session = {
     // id of the ERC-7715 permission granted by the connected account
@@ -19,6 +23,7 @@ export type Session = {
 const storageKey = "session";
 
 export const useAddInputSession = () => {
+    const chainId = useChainId();
     const { mutateAsync: grantPermissions } = useGrantPermissions();
     const { mutateAsync: revokePermissions } = useRevokePermissions();
     const [session, setSession] = useState<Session>();
@@ -32,14 +37,19 @@ export const useAddInputSession = () => {
     }, []);
 
     const createSession = async (expiry: number) => {
-        // create a burner wallet for the session, which acts as the spender of the permission
+        // create a burner wallet for the session
         const privateKey = generatePrivateKey();
-        const burner = privateKeyToAccount(privateKey);
 
-        // grant permission to the burner wallet to call addInput on the InputBox
+        // the spender of the permission is the smart account owned by the burner wallet
+        const spender = await Account.fromLocalAccount(
+            { apiKey, chainId },
+            privateKeyToAccount(privateKey)
+        );
+
+        // grant permission to the burner smart account to call addInput on the InputBox
         const result = await grantPermissions({
             expiry,
-            spender: burner.address,
+            spender: spender.address,
             permissions: {
                 calls: [
                     {
